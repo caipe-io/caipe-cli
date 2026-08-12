@@ -9,7 +9,7 @@ import { PICKER_HINT_NAV } from "./shortcuts.js";
 import { pickerWindow } from "./picker-nav.js";
 import type { SessionSummary } from "./history.js";
 
-const VISIBLE_ROWS = 14;
+const ROW_SEPARATOR = "  ────────────────────────────────────────────────────────";
 
 function formatStarted(iso: string): string {
   return iso.slice(0, 19).replace("T", " ");
@@ -25,6 +25,7 @@ export interface SessionPickerProps {
   selectedIndex: number;
   activeSessionId: string;
   filter: string;
+  visibleRowCount?: number;
 }
 
 export function SessionPicker({
@@ -32,6 +33,7 @@ export function SessionPicker({
   selectedIndex,
   activeSessionId,
   filter,
+  visibleRowCount = 10,
 }: SessionPickerProps): React.ReactElement {
   if (sessions.length === 0) {
     return (
@@ -43,7 +45,7 @@ export function SessionPicker({
 
   const safeIndex = Math.max(0, Math.min(selectedIndex, sessions.length - 1));
   const selected = sessions[safeIndex];
-  const { start, end } = pickerWindow(sessions.length, safeIndex, VISIBLE_ROWS);
+  const { start, end } = pickerWindow(sessions.length, safeIndex, visibleRowCount);
   const slice = sessions.slice(start, end);
 
   return (
@@ -63,26 +65,33 @@ export function SessionPicker({
         const sel = idx === safeIndex;
         const inSession = s.sessionId === activeSessionId;
         const started = formatStarted(s.startedAt);
+        const num = String(idx + 1).padStart(2, " ");
         return (
           <Box key={s.sessionId} flexDirection="column">
-            <Box>
-              <Text color={sel ? "cyan" : undefined}>{sel ? "▶ " : "  "}</Text>
-              <Text bold={sel} color={sel ? "cyan" : "white"}>
-                {shortSessionId(s.sessionId).padEnd(22)}
-              </Text>
-              <Text dimColor={!sel}> {s.agentName.padEnd(28).slice(0, 28)} </Text>
-              <Text dimColor={!sel}>
-                {s.messageCount} msg · {started}
-              </Text>
-              {inSession ? <Text dimColor={!sel}> · in session</Text> : null}
-            </Box>
-            {sel ? (
-              <Box paddingLeft={2}>
-                <Text dimColor wrap="truncate">
-                  {s.sessionId}
+            {i > 0 ? <Text dimColor>{ROW_SEPARATOR}</Text> : null}
+            <Box flexDirection="column">
+              <Box>
+                <Text bold={sel} color={sel ? "cyan" : undefined} dimColor={!sel}>
+                  {`${num} `}
                 </Text>
+                <Text color={sel ? "cyan" : undefined}>{sel ? "▶ " : "  "}</Text>
+                <Text bold={sel} color={sel ? "cyan" : "white"}>
+                  {shortSessionId(s.sessionId).padEnd(22)}
+                </Text>
+                <Text dimColor={!sel}> {s.agentName.padEnd(28).slice(0, 28)} </Text>
+                <Text dimColor={!sel}>
+                  {s.messageCount} msg · {started}
+                </Text>
+                {inSession ? <Text dimColor={!sel}> · in session</Text> : null}
               </Box>
-            ) : null}
+              {sel ? (
+                <Box paddingLeft={4}>
+                  <Text dimColor wrap="truncate">
+                    {s.sessionId}
+                  </Text>
+                </Box>
+              ) : null}
+            </Box>
           </Box>
         );
       })}

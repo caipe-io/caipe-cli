@@ -24,7 +24,6 @@ const LOGO_LINES = [
 ];
 
 const TAGLINE = "Custom Agents, workflows and more... caipe.io";
-const VERSION_COLOR = NO_COLOR ? "" : "\x1b[90m";
 const CYAN = NO_COLOR ? "" : "\x1b[96m";
 const RESET = NO_COLOR ? "" : "\x1b[0m";
 
@@ -32,7 +31,7 @@ const RESET = NO_COLOR ? "" : "\x1b[0m";
  * Print the CAIPE ASCII logo to stdout.
  * Called once when an interactive chat session starts.
  */
-export function printLogo(version: string): void {
+export function printLogo(): void {
   if (NO_COLOR) {
     process.stdout.write("CAIPE\n");
     process.stdout.write(`${TAGLINE}\n\n`);
@@ -42,8 +41,7 @@ export function printLogo(version: string): void {
   for (const line of LOGO_LINES) {
     process.stdout.write(`${CYAN}${line}${RESET}\n`);
   }
-  process.stdout.write(`\n  ${TAGLINE}\n`);
-  process.stdout.write(`  ${VERSION_COLOR}v${version}${RESET}\n\n`);
+  process.stdout.write(`\n  ${TAGLINE}\n\n`);
 }
 
 // ---------------------------------------------------------------------------

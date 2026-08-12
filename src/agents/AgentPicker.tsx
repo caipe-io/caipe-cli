@@ -10,9 +10,8 @@ import { isRichTerminalEnabled } from "../platform/terminal/capabilities.js";
 import { pickerWindow, truncateText } from "./picker.js";
 import type { Agent } from "./types.js";
 
-const VISIBLE_ROWS = 14;
-const DESC_PREVIEW = 72;
 const DESC_SELECTED_MAX = 240;
+const ROW_SEPARATOR = "  ────────────────────────────────────────────────────────";
 
 function agentTitle(agent: Agent): string {
   const display = agent.displayName.trim();
@@ -24,6 +23,8 @@ export interface AgentPickerProps {
   selectedIndex: number;
   activeAgentName: string;
   filter: string;
+  /** Max agent rows in the scroll window (fits terminal). */
+  visibleRowCount?: number;
 }
 
 export function AgentPicker({
@@ -31,6 +32,7 @@ export function AgentPicker({
   selectedIndex,
   activeAgentName,
   filter,
+  visibleRowCount = 8,
 }: AgentPickerProps): React.ReactElement {
   if (agents.length === 0) {
     return (
@@ -43,7 +45,7 @@ export function AgentPicker({
   const rich = isRichTerminalEnabled();
   const safeIndex = Math.max(0, Math.min(selectedIndex, agents.length - 1));
   const selectedAgent = agents[safeIndex];
-  const { start, end } = pickerWindow(agents.length, safeIndex, VISIBLE_ROWS);
+  const { start, end } = pickerWindow(agents.length, safeIndex, visibleRowCount);
   const slice = agents.slice(start, end);
 
   return (
@@ -66,18 +68,21 @@ export function AgentPicker({
         const inSession = agent.name === activeAgentName;
         const title = agentTitle(agent);
         const desc = agent.description.trim();
-        const descLine = selected
-          ? truncateText(desc, DESC_SELECTED_MAX)
-          : truncateText(desc, DESC_PREVIEW);
+        const descLine = selected ? truncateText(desc, DESC_SELECTED_MAX) : "";
+        const num = String(idx + 1).padStart(2, " ");
 
         const rowBg = selected && rich ? "blue" : undefined;
         const titleColor = selected ? (rich ? "white" : "cyan") : undefined;
         const titleDim = !selected;
 
         return (
-          <Box key={agent.name} flexDirection="column" marginY={selected ? 0 : 0}>
-            <Box backgroundColor={rowBg} flexDirection="column" paddingX={selected ? 1 : 0}>
+          <Box key={agent.name} flexDirection="column">
+            {i > 0 ? <Text dimColor>{ROW_SEPARATOR}</Text> : null}
+            <Box backgroundColor={rowBg} flexDirection="column">
               <Box>
+                <Text bold={selected} color={selected ? "cyan" : undefined} dimColor={!selected}>
+                  {`${num} `}
+                </Text>
                 <Text bold={selected} color={titleColor} dimColor={titleDim && !rich}>
                   {selected ? "▶ " : "  "}
                 </Text>
@@ -94,31 +99,19 @@ export function AgentPicker({
                   </Text>
                 ) : null}
               </Box>
-              {selected ? (
+              {selected && descLine ? (
                 <>
                   <Box paddingLeft={2}>
-                    <Text
-                      color={rich ? "white" : "cyan"}
-                      dimColor={!rich}
-                      wrap="truncate"
-                    >
+                    <Text color={rich ? "white" : "cyan"} dimColor={!rich} wrap="truncate">
                       {`ID: ${agent.name}`}
                     </Text>
                   </Box>
-                  {descLine ? (
-                    <Box paddingLeft={2}>
-                      <Text color={rich ? "white" : undefined} dimColor={!rich} wrap="wrap">
-                        {descLine}
-                      </Text>
-                    </Box>
-                  ) : null}
+                  <Box paddingLeft={2}>
+                    <Text color={rich ? "white" : undefined} dimColor={!rich} wrap="wrap">
+                      {descLine}
+                    </Text>
+                  </Box>
                 </>
-              ) : descLine ? (
-                <Box paddingLeft={2}>
-                  <Text dimColor wrap="truncate">
-                    {descLine}
-                  </Text>
-                </Box>
               ) : null}
             </Box>
           </Box>

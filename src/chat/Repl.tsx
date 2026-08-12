@@ -565,13 +565,22 @@ export function Repl({
     const c = stdout.columns;
     return typeof c === "number" && c >= 20 ? c : getTerminalWidth();
   });
+  const [terminalRows, setTerminalRows] = useState(() => {
+    const r = stdout.rows;
+    return typeof r === "number" && r >= 10 ? r : 24;
+  });
 
   useEffect(() => {
     let debounce: ReturnType<typeof setTimeout> | undefined;
     const sync = () => {
       const c = stdout.columns;
-      if (typeof c !== "number" || c < 20) return;
-      setTerminalCols((prev) => (prev === c ? prev : c));
+      if (typeof c === "number" && c >= 20) {
+        setTerminalCols((prev) => (prev === c ? prev : c));
+      }
+      const r = stdout.rows;
+      if (typeof r === "number" && r >= 10) {
+        setTerminalRows((prev) => (prev === r ? prev : r));
+      }
     };
     const onResize = () => {
       if (debounce) clearTimeout(debounce);
@@ -940,6 +949,12 @@ export function Repl({
 
   const agentPickerActive = agentPickerCatalog !== null && !streaming;
   const sessionPickerActive = sessionPickerCatalog !== null && !streaming;
+  const overlayPickerActive = agentPickerActive || sessionPickerActive;
+  /** Keep picker + input on-screen without scrolling the alternate buffer. */
+  const pickerVisibleRows = useMemo(() => {
+    const reserved = 11;
+    return Math.max(6, Math.min(12, terminalRows - reserved));
+  }, [terminalRows]);
   const agentPickerFiltered = useMemo(() => {
     if (!agentPickerCatalog) return [];
     return filterAgents(agentPickerCatalog, input);
@@ -1777,30 +1792,38 @@ export function Repl({
 
   return (
     <Box flexDirection="column" height="100%">
-      <StaticHistory
-        generation={generation}
-        items={staticItems}
-        markdownWidth={markdownWidth}
-        terminalWidth={terminalWidth}
-      />
+      {overlayPickerActive ? (
+        <Box paddingX={1} marginBottom={1}>
+          <Text dimColor>Chat hidden while picker is open · Esc to return</Text>
+        </Box>
+      ) : (
+        <StaticHistory
+          generation={generation}
+          items={staticItems}
+          markdownWidth={markdownWidth}
+          terminalWidth={terminalWidth}
+        />
+      )}
 
       <Box flexDirection="column" paddingY={0}>
-        {localShellRun ? (
+        {!overlayPickerActive && localShellRun ? (
           <ToolActivityPanel
             phase="running"
             runs={[{ name: "shell", detail: localShellRun.cmd }]}
             elapsed={localShellElapsed}
           />
         ) : null}
-        <StreamingStatusPanel
-          active={streaming}
-          liveToolsRef={liveToolsRef}
-          turnToolRunsRef={turnToolRunsRef}
-          streamStartRef={streamStartRef}
-          streamTokenRef={streamTokenRef}
-          streamPhaseRef={streamPhaseRef}
-        />
-        {staticItems.length === 0 && !streaming && !localShellRun && (
+        {!overlayPickerActive ? (
+          <StreamingStatusPanel
+            active={streaming}
+            liveToolsRef={liveToolsRef}
+            turnToolRunsRef={turnToolRunsRef}
+            streamStartRef={streamStartRef}
+            streamTokenRef={streamTokenRef}
+            streamPhaseRef={streamPhaseRef}
+          />
+        ) : null}
+        {staticItems.length === 0 && !streaming && !localShellRun && !overlayPickerActive && (
           <Box paddingX={1}>
             <Text dimColor>
               {`Type a message, ${SHORTCUT_SLASH_COMMANDS} for commands, or ${SHORTCUT_AGENT_PICKER} for agents.`}
@@ -1827,6 +1850,7 @@ export function Repl({
           selectedIndex={agentPickerIndex}
           activeAgentName={currentAgent.name}
           filter={input}
+          visibleRowCount={pickerVisibleRows}
         />
       )}
 
@@ -1836,6 +1860,7 @@ export function Repl({
           selectedIndex={sessionPickerIndex}
           activeSessionId={activeSessionRef.current.sessionId}
           filter={input}
+          visibleRowCount={pickerVisibleRows}
         />
       )}
 

@@ -24,21 +24,11 @@ import {
   installAlternateScreenCleanup,
   leaveAlternateScreen,
 } from "../platform/terminal/screen.js";
-import { checkForUpdate, printUpdateBanner } from "../platform/updater.js";
 import { Repl } from "./Repl.js";
 import { buildSystemContext } from "./context.js";
 import { createSession, saveSession } from "./history.js";
 import type { ChatSession } from "./history.js";
 import { createAdapter } from "./stream.js";
-import { createRequire } from "node:module";
-
-const requirePkg = createRequire(import.meta.url);
-let _version = "0.1.0";
-try {
-  _version = (requirePkg("../../package.json") as { version: string }).version;
-} catch {
-  /* ignore */
-}
 
 interface ChatOpts {
   agent?: string;
@@ -89,9 +79,6 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
     }
   }
 
-  // Kick off update check in background — non-blocking
-  const updateCheckPromise = checkForUpdate(_version);
-
   // Ensure user is authenticated before opening the REPL
   const tokens = await import("../auth/tokens.js");
   const keychain = await import("../auth/keychain.js");
@@ -102,16 +89,13 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
     await loginBrowser(authUrl, "caipe-cli");
   }
 
-  // Print logo, then show update banner if one is available
   const termCaps = getTerminalCapabilities();
   if (termCaps.alternateScreen) {
     installAlternateScreenCleanup();
     enterAlternateScreen();
   }
 
-  printLogo(_version);
-  const latestVersion = await updateCheckPromise;
-  if (latestVersion) printUpdateBanner(_version, latestVersion);
+  printLogo();
 
   // Stream endpoint: caipe-ui BFF (may differ from authUrl when KC is separate)
   let serverUrl: string;
