@@ -8,12 +8,10 @@
 /**
  * Async iterator over newline-delimited lines from stdin (trailing `\r` stripped).
  */
-export async function* readStdinLines(input: NodeJS.ReadableStream = process.stdin): AsyncGenerator<
-  string,
-  void,
-  undefined
-> {
-  let pending: string[] = [];
+export async function* readStdinLines(
+  input: NodeJS.ReadableStream = process.stdin,
+): AsyncGenerator<string, void, undefined> {
+  const pending: string[] = [];
   let notify: (() => void) | null = null;
   let ended = false;
   let buffer = "";

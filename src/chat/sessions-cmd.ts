@@ -16,12 +16,12 @@ export async function runSessionsList(opts: { json?: boolean }): Promise<void> {
     return;
   }
 
-  process.stdout.write("Saved sessions (resume with `caipe chat --resume <sessionId>` or `/resume` in the REPL):\n\n");
+  process.stdout.write(
+    "Saved sessions (resume with `caipe chat --resume <sessionId>` or `/resume` in the REPL):\n\n",
+  );
   for (const s of sessions) {
     const started = s.startedAt.slice(0, 19).replace("T", " ");
-    process.stdout.write(
-      `  ${s.sessionId}  ${s.agentName}  ${s.messageCount} msg  ${started}\n`,
-    );
+    process.stdout.write(`  ${s.sessionId}  ${s.agentName}  ${s.messageCount} msg  ${started}\n`);
   }
   process.stdout.write("\n");
 }

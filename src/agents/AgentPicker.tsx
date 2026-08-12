@@ -59,9 +59,7 @@ export function AgentPicker({
           {filter ? ` · filter: "${filter}"` : " · type to filter"}
         </Text>
       </Box>
-      {start > 0 ? (
-        <Text dimColor>{`  ↑ ${start} more above`}</Text>
-      ) : null}
+      {start > 0 ? <Text dimColor>{`  ↑ ${start} more above`}</Text> : null}
       {slice.map((agent, i) => {
         const idx = start + i;
         const selected = idx === safeIndex;
@@ -78,19 +76,37 @@ export function AgentPicker({
         return (
           <Box key={agent.name} flexDirection="column">
             {i > 0 ? <Text dimColor>{ROW_SEPARATOR}</Text> : null}
-            <Box backgroundColor={rowBg} flexDirection="column">
+            {/* ink 5 has no Box-level background; the row tint lives on the Text nodes. */}
+            <Box flexDirection="column">
               <Box>
-                <Text bold={selected} color={selected ? "cyan" : undefined} dimColor={!selected}>
+                <Text
+                  backgroundColor={rowBg}
+                  bold={selected}
+                  color={selected ? "cyan" : undefined}
+                  dimColor={!selected}
+                >
                   {`${num} `}
                 </Text>
-                <Text bold={selected} color={titleColor} dimColor={titleDim && !rich}>
+                <Text
+                  backgroundColor={rowBg}
+                  bold={selected}
+                  color={titleColor}
+                  dimColor={titleDim && !rich}
+                >
                   {selected ? "▶ " : "  "}
                 </Text>
-                <Text bold={selected} color={titleColor} dimColor={titleDim && !rich} wrap="truncate">
+                <Text
+                  backgroundColor={rowBg}
+                  bold={selected}
+                  color={titleColor}
+                  dimColor={titleDim && !rich}
+                  wrap="truncate"
+                >
                   {title}
                 </Text>
                 {inSession ? (
                   <Text
+                    backgroundColor={rowBg}
                     bold={selected}
                     color={selected && rich ? "white" : undefined}
                     dimColor={!selected || !rich}
@@ -102,12 +118,22 @@ export function AgentPicker({
               {selected && descLine ? (
                 <>
                   <Box paddingLeft={2}>
-                    <Text color={rich ? "white" : "cyan"} dimColor={!rich} wrap="truncate">
+                    <Text
+                      backgroundColor={rowBg}
+                      color={rich ? "white" : "cyan"}
+                      dimColor={!rich}
+                      wrap="truncate"
+                    >
                       {`ID: ${agent.name}`}
                     </Text>
                   </Box>
                   <Box paddingLeft={2}>
-                    <Text color={rich ? "white" : undefined} dimColor={!rich} wrap="wrap">
+                    <Text
+                      backgroundColor={rowBg}
+                      color={rich ? "white" : undefined}
+                      dimColor={!rich}
+                      wrap="wrap"
+                    >
                       {descLine}
                     </Text>
                   </Box>
@@ -117,9 +143,7 @@ export function AgentPicker({
           </Box>
         );
       })}
-      {end < agents.length ? (
-        <Text dimColor>{`  ↓ ${agents.length - end} more below`}</Text>
-      ) : null}
+      {end < agents.length ? <Text dimColor>{`  ↓ ${agents.length - end} more below`}</Text> : null}
       <Box marginTop={0}>
         <Text color="cyan" bold>
           {`${safeIndex + 1}/${agents.length}`}
@@ -128,9 +152,7 @@ export function AgentPicker({
         <Text bold color="white">
           {selectedAgent ? agentTitle(selectedAgent) : ""}
         </Text>
-        <Text dimColor>
-          {` · Enter switch · ${agents.length} total · or /agents <id>`}
-        </Text>
+        <Text dimColor>{` · Enter switch · ${agents.length} total · or /agents <id>`}</Text>
       </Box>
     </Box>
   );

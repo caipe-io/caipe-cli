@@ -133,12 +133,15 @@ export function pickSessionAgent(
       return preferred;
     }
     process.stderr.write(
-      `[WARNING] Configured default agent "${configuredDefault}" is not accessible. ` +
-        "Run `caipe agents list` or `caipe config unset agent.default`. Falling back to first agent.\n",
+      `[WARNING] Configured default agent "${configuredDefault}" is not accessible. Run \`caipe agents list\` or \`caipe config unset agent.default\`. Falling back to first agent.\n`,
     );
   }
 
+  // agents is non-empty (guarded above), so agents[0] is always defined.
   const pick = agents.find((a) => a.available) ?? agents[0];
+  if (!pick) {
+    throw new Error("No agents returned for your account. Run `caipe agents list`.");
+  }
   return pick;
 }
 

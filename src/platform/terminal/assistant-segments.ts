@@ -1,8 +1,6 @@
 import { isUnifiedDiffText } from "../diff.js";
 
-export type AssistantSegment =
-  | { kind: "markdown"; text: string }
-  | { kind: "diff"; text: string };
+export type AssistantSegment = { kind: "markdown"; text: string } | { kind: "diff"; text: string };
 
 const FENCE_RE = /```([^\n]*)\n([\s\S]*?)```/g;
 

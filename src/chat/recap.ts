@@ -3,8 +3,7 @@
  * Stripped from markdown body and shown as a dim recap row above the main reply.
  */
 
-const RECAP_LINE =
-  /^(?:\*+\s*)?Recap:\s*(.+)$/i;
+const RECAP_LINE = /^(?:\*+\s*)?Recap:\s*(.+)$/i;
 
 /**
  * Extract an optional recap line from the start of assistant text (before first blank line block).

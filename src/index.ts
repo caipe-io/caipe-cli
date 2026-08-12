@@ -229,6 +229,150 @@ agentsCmd
   });
 
 // ---------------------------------------------------------------------------
+// caipe kb (Knowledge Base — JSON output for scripts)
+// ---------------------------------------------------------------------------
+const kbCmd = program
+  .command("kb")
+  .description("Knowledge Base API (non-interactive JSON; ingestion, read, RBAC)")
+  .option("--kb-url <url>", "Override kb.url / CAIPE_KB_URL for this invocation")
+  .option("--token <jwt>", "Bearer JWT (or use CAIPE_TOKEN / OAuth session)")
+  .option("--tenant-id <id>", "X-Tenant-Id header (or CAIPE_TENANT_ID)");
+
+function kbCtx(cmdOpts: Record<string, unknown>): import("./kb/commands.js").KbCommandContextInput {
+  const globalOpts = program.opts() as { url?: string };
+  const parentOpts = kbCmd.opts() as {
+    kbUrl?: string;
+    token?: string;
+    tenantId?: string;
+  };
+  return {
+    authUrl: globalOpts.url,
+    kbUrl: (cmdOpts.kbUrl as string | undefined) ?? parentOpts.kbUrl,
+    token: (cmdOpts.token as string | undefined) ?? parentOpts.token,
+    tenantId:
+      (cmdOpts.tenantId as string | undefined) ??
+      parentOpts.tenantId ??
+      process.env.CAIPE_TENANT_ID,
+  };
+}
+
+const kbUserCmd = kbCmd.command("user").description("Current user and RBAC permissions");
+
+kbUserCmd
+  .command("info")
+  .description("GET /v1/user/info")
+  .action(async (opts: Record<string, unknown>) => {
+    const { runKbUserInfo } = await import("./kb/commands.js");
+    await runKbUserInfo(kbCtx(opts));
+  });
+
+const kbDsCmd = kbCmd.command("datasources").description("List knowledge sources");
+
+kbDsCmd
+  .command("list")
+  .description("GET /v1/datasources")
+  .action(async (opts: Record<string, unknown>) => {
+    const { runKbDatasourcesList } = await import("./kb/commands.js");
+    await runKbDatasourcesList(kbCtx(opts));
+  });
+
+const kbDocCmd = kbCmd.command("documents").description("Documents and chunks in a datasource");
+
+kbDocCmd
+  .command("list <datasourceId>")
+  .description("GET /v1/datasource/{id}/documents")
+  .option("--offset <n>", "Pagination offset", "0")
+  .option("--limit <n>", "Page size (max 1000)", "100")
+  .action(async (datasourceId: string, opts: Record<string, unknown>) => {
+    const { runKbDocumentsList } = await import("./kb/commands.js");
+    await runKbDocumentsList(datasourceId, {
+      ...kbCtx(opts),
+      offset: Number(opts.offset),
+      limit: Number(opts.limit),
+    });
+  });
+
+const kbChunkCmd = kbCmd.command("chunk").description("Fetch chunk payload");
+
+kbChunkCmd
+  .command("get <chunkId>")
+  .description("GET /v1/chunk/{id}/content")
+  .action(async (chunkId: string, opts: Record<string, unknown>) => {
+    const { runKbChunkGet } = await import("./kb/commands.js");
+    await runKbChunkGet(chunkId, kbCtx(opts));
+  });
+
+kbCmd
+  .command("query")
+  .description("POST /v1/query (semantic search)")
+  .requiredOption("--query <text>", "Search query")
+  .option("--limit <n>", "Max results", "10")
+  .action(async (opts: Record<string, unknown>) => {
+    const { runKbQuery } = await import("./kb/commands.js");
+    await runKbQuery(String(opts.query), {
+      ...kbCtx(opts),
+      limit: Number(opts.limit),
+    });
+  });
+
+const kbJobCmd = kbCmd.command("job").description("Ingestion job status");
+
+kbJobCmd
+  .command("get <jobId>")
+  .description("GET /v1/job/{id}")
+  .action(async (jobId: string, opts: Record<string, unknown>) => {
+    const { runKbJobGet } = await import("./kb/commands.js");
+    await runKbJobGet(jobId, kbCtx(opts));
+  });
+
+kbJobCmd
+  .command("list-by-datasource <datasourceId>")
+  .description("GET /v1/jobs/datasource/{id}")
+  .action(async (datasourceId: string, opts: Record<string, unknown>) => {
+    const { runKbJobsByDatasource } = await import("./kb/commands.js");
+    await runKbJobsByDatasource(datasourceId, kbCtx(opts));
+  });
+
+const kbIngestCmd = kbCmd
+  .command("ingest")
+  .description("Queue ingestion (requires ingest permission)");
+
+kbIngestCmd
+  .command("url")
+  .description("POST /v1/ingest/webloader/url")
+  .requiredOption("--url <url>", "URL to ingest")
+  .option("--description <text>", "Datasource description")
+  .option("--owner-team-slug <slug>", "Owning team for RBAC")
+  .action(async (opts: Record<string, unknown>) => {
+    const { runKbIngestUrl } = await import("./kb/commands.js");
+    await runKbIngestUrl(String(opts.url), {
+      ...kbCtx(opts),
+      description: opts.description as string | undefined,
+      ownerTeamSlug: opts.ownerTeamSlug as string | undefined,
+    });
+  });
+
+kbIngestCmd
+  .command("file <paths...>")
+  .description("POST /v1/ingest/local-file (markdown, text, pdf)")
+  .option("--description <text>", "Datasource description")
+  .option("--owner-team-slug <slug>", "Owning team for RBAC")
+  .option("--chunk-size <n>", "Chunk size", "10000")
+  .option("--chunk-overlap <n>", "Chunk overlap", "2000")
+  .action(async (paths: string[], opts: Record<string, unknown>) => {
+    const { runKbIngestFile } = await import("./kb/commands.js");
+    await runKbIngestFile(paths, {
+      ...kbCtx(opts),
+      description: opts.description as string | undefined,
+      ownerTeamSlug: opts.ownerTeamSlug as string | undefined,
+      chunkSize: Number(opts.chunkSize),
+      chunkOverlap: Number(opts.chunkOverlap),
+    });
+  });
+
+void kbCmd;
+
+// ---------------------------------------------------------------------------
 // caipe memory
 // ---------------------------------------------------------------------------
 program

@@ -5,9 +5,9 @@
 import { Box, Text } from "ink";
 import type React from "react";
 
-import { PICKER_HINT_NAV } from "./shortcuts.js";
-import { pickerWindow } from "./picker-nav.js";
 import type { SessionSummary } from "./history.js";
+import { pickerWindow } from "./picker-nav.js";
+import { PICKER_HINT_NAV } from "./shortcuts.js";
 
 const ROW_SEPARATOR = "  ────────────────────────────────────────────────────────";
 

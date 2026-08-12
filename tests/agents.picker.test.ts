@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { filterAgents, pickerWindow, sortAgentsForPicker, truncateText } from "../src/agents/picker.js";
+import {
+  filterAgents,
+  pickerWindow,
+  sortAgentsForPicker,
+  truncateText,
+} from "../src/agents/picker.js";
 import type { Agent } from "../src/agents/types.js";
 
 const sample: Agent[] = [

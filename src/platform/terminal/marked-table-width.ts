@@ -2,18 +2,11 @@
  * GFM tables sized to the Ink content column (marked-terminal ignores width for tables).
  */
 
-import Table from "cli-table3";
 import chalk from "chalk";
-import type { MarkedExtension, Parser } from "marked";
+import Table from "cli-table3";
+import type { MarkedExtension, Parser, Tokens } from "marked";
 
-type TableCellToken = { tokens: { type: string; raw?: string; text?: string; tokens?: unknown[] }[] };
-
-type TableToken = {
-  header: TableCellToken[];
-  rows: TableCellToken[][];
-};
-
-function inlineCell(parser: Parser, cell: TableCellToken): string {
+function inlineCell(parser: Parser, cell: Tokens.TableCell): string {
   return parser.parseInline(cell.tokens).trim();
 }
 
@@ -22,7 +15,7 @@ export function tableBorderSlack(columnCount: number): number {
   return columnCount + 3;
 }
 
-function normalizeHeader(cell: TableCellToken, parser: Parser): string {
+function normalizeHeader(cell: Tokens.TableCell, parser: Parser): string {
   return inlineCell(parser, cell).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
@@ -64,7 +57,7 @@ export function layoutTableColWidths(
     }
 
     const hasLinkCol = h.some((c) => c === "link" || c.includes("url"));
-    if (n === 3 && (h[0] === "#" || h[0].startsWith("#")) && hasLinkCol) {
+    if (n === 3 && h[0]?.startsWith("#") && hasLinkCol) {
       const num = 5;
       const title = Math.min(22, Math.max(10, Math.floor(inner * 0.22)));
       const link = inner - num - title;
@@ -87,15 +80,13 @@ export function layoutTableColWidths(
 export function markedTableWidthExtension(contentWidth: number): MarkedExtension {
   const colBudget = Math.max(24, contentWidth);
   return {
-    name: "caipe-table-width",
     renderer: {
-      table(token) {
-        const tableToken = token as TableToken;
-        const cols = tableToken.header.length;
+      table(token: Tokens.Table) {
+        const cols = token.header.length;
         if (cols === 0) return "";
-        const headers = tableToken.header.map((cell) => normalizeHeader(cell, this.parser));
+        const headers = token.header.map((cell) => normalizeHeader(cell, this.parser));
         const colWidths = layoutTableColWidths(cols, colBudget, headers);
-        const head = tableToken.header.map((cell) => inlineCell(this.parser, cell));
+        const head = token.header.map((cell) => inlineCell(this.parser, cell));
         const table = new Table({
           head,
           colWidths,
@@ -103,7 +94,7 @@ export function markedTableWidthExtension(contentWidth: number): MarkedExtension
           wrapOnWordBoundary: true,
           style: { head: ["cyan", "bold"], border: ["gray"] },
         });
-        for (const row of tableToken.rows) {
+        for (const row of token.rows) {
           table.push(row.map((cell) => inlineCell(this.parser, cell)));
         }
         return `${chalk.reset(table.toString())}\n\n`;

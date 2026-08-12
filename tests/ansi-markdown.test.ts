@@ -1,17 +1,12 @@
-import React from "react";
 import { render } from "ink";
+import React from "react";
 import { describe, expect, it } from "vitest";
-import { renderMarkdownToAnsi } from "../src/platform/terminal/ansi-markdown.js";
-import { maxVisibleLineWidth, tableBorderSlack } from "../src/platform/terminal/marked-table-width.js";
 import { AnsiMarkdown } from "../src/platform/terminal/AnsiMarkdown.js";
-
-const JIRA_TABLE = `Here are your issues:
-
-| Key | Summary | Status | Updated |
-| --- | --- | --- | --- |
-| **EC2-1** | creation failed | Open | Jul 14 |
-| **ARGO-2** | deploy failed | In Progress | May 22 |
-`;
+import { renderMarkdownToAnsi } from "../src/platform/terminal/ansi-markdown.js";
+import {
+  maxVisibleLineWidth,
+  tableBorderSlack,
+} from "../src/platform/terminal/marked-table-width.js";
 
 const GFM_LIST = "**Available agents**\n\n- **agent-sre** _(active)_ — SRE Agent";
 
@@ -30,10 +25,13 @@ describe("renderMarkdownToAnsi", () => {
 
   it("renders lists and headings without throwing in Ink", () => {
     expect(() => {
-      render(React.createElement(AnsiMarkdown, {
-        width: 80,
-        children: GFM_LIST,
-      })).unmount();
+      render(
+        React.createElement(AnsiMarkdown, {
+          width: 80,
+          // biome-ignore lint/correctness/noChildrenProp: AnsiMarkdownProps.children is typed `string`, not ReactNode, so createElement's variadic-children form doesn't type-check here.
+          children: GFM_LIST,
+        }),
+      ).unmount();
     }).not.toThrow();
   });
 
@@ -61,7 +59,7 @@ describe("renderMarkdownToAnsi", () => {
   });
 
   it("renders GFM bullet lists with inline bold (marked v15)", () => {
-    const md = `**Active Jira tasks:**\n\n* **OPENSD-2454** - Edge (Waiting)\n* **CFP-1** - foo`;
+    const md = "**Active Jira tasks:**\n\n* **OPENSD-2454** - Edge (Waiting)\n* **CFP-1** - foo";
     const ansi = renderMarkdownToAnsi(md, { width: 100, forceRich: true });
     expect(ansi).toContain("• OPENSD-2454");
     expect(ansi).not.toContain("**OPENSD");

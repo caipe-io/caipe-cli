@@ -8,6 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolveSessionAgent } from "../agents/registry.js";
+import type { Agent } from "../agents/types.js";
 import { buildSystemContext } from "../chat/context.js";
 import { createSession } from "../chat/history.js";
 import { createAdapter } from "../chat/stream.js";
@@ -57,7 +58,7 @@ export async function runHeadless(opts: HeadlessOpts): Promise<void> {
 
   const getToken = async () => credentials.accessToken;
 
-  let resolvedAgent;
+  let resolvedAgent: Agent;
   try {
     resolvedAgent = await resolveSessionAgent(serverUrl, getToken, opts.agentName);
   } catch (err) {

@@ -128,9 +128,7 @@ function conversationCreateError(status: number, bodyText: string, agentId: stri
     const body = JSON.parse(bodyText) as { code?: string; error?: string; reason?: string };
     if (status === 403 && body.code === "agent#use") {
       return new Error(
-        `Permission denied for agent "${agentId}" (OpenFGA agent#use). ` +
-          "Run `caipe agents list` and use `caipe chat --agent <id>` for an agent you can access, " +
-          "or ask an admin to grant use on this agent.",
+        `Permission denied for agent "${agentId}" (OpenFGA agent#use). Run \`caipe agents list\` and use \`caipe chat --agent <id>\` for an agent you can access, or ask an admin to grant use on this agent.`,
       );
     }
     if (body.error) {
@@ -203,11 +201,10 @@ export class AguiAdapter implements StreamAdapter {
     const url = `${base}/api/chat/conversations`;
 
     try {
-      const attempts: Array<{ client_type: "slack" | "cli"; metadata: Record<string, unknown> }> =
-        [
-          { client_type: "slack", metadata: { source: "caipe-cli", bridged_as: "slack" } },
-          { client_type: "cli", metadata: { source: "caipe-cli" } },
-        ];
+      const attempts: Array<{ client_type: "slack" | "cli"; metadata: Record<string, unknown> }> = [
+        { client_type: "slack", metadata: { source: "caipe-cli", bridged_as: "slack" } },
+        { client_type: "cli", metadata: { source: "caipe-cli" } },
+      ];
       let res: Response | undefined;
       let lastError = "";
 

@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  heuristicAuthIssuerCandidates,
-  oauthIssuerFromConfig,
-} from "../src/platform/discovery.js";
+import { heuristicAuthIssuerCandidates, oauthIssuerFromConfig } from "../src/platform/discovery.js";
 
 describe("oauthIssuerFromConfig", () => {
   it("returns explicit issuer when present", () => {
@@ -20,8 +17,7 @@ describe("oauthIssuerFromConfig", () => {
     expect(
       oauthIssuerFromConfig({
         oauth: {
-          token_endpoint:
-            "https://idp.example.com/realms/caipe/protocol/openid-connect/token",
+          token_endpoint: "https://idp.example.com/realms/caipe/protocol/openid-connect/token",
           authorization_endpoint:
             "https://idp.example.com/realms/caipe/protocol/openid-connect/auth",
         },
@@ -35,17 +31,17 @@ describe("oauthIssuerFromConfig", () => {
 });
 
 describe("heuristicAuthIssuerCandidates", () => {
-  it("maps grid.outshift.io to idp.grid.outshift.io realm", () => {
-    expect(heuristicAuthIssuerCandidates("https://grid.outshift.io")).toEqual([
-      "https://idp.grid.outshift.io/realms/caipe",
-      "https://grid.outshift.io/realms/caipe",
+  it("maps grid.example.com to idp.grid.example.com realm", () => {
+    expect(heuristicAuthIssuerCandidates("https://grid.example.com")).toEqual([
+      "https://idp.grid.example.com/realms/caipe",
+      "https://grid.example.com/realms/caipe",
     ]);
   });
 
   it("maps grid.preview host and respects CAIPE_AUTH_REALM", () => {
     process.env.CAIPE_AUTH_REALM = "myrealm";
-    expect(heuristicAuthIssuerCandidates("https://grid.preview.outshift.io/")).toContain(
-      "https://idp.grid.preview.outshift.io/realms/myrealm",
+    expect(heuristicAuthIssuerCandidates("https://grid.preview.example.com/")).toContain(
+      "https://idp.grid.preview.example.com/realms/myrealm",
     );
     delete process.env.CAIPE_AUTH_REALM;
   });

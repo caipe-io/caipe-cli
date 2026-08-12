@@ -3,13 +3,14 @@
  */
 
 import { Box, Static, Text } from "ink";
-import React, { memo } from "react";
+import type React from "react";
+import { memo } from "react";
 
 import {
-  ToolActivityPanel,
-  UserMessageBar,
   RecapLine,
+  ToolActivityPanel,
   type ToolActivityRun,
+  UserMessageBar,
 } from "../platform/display.js";
 import { AssistantBody, InkDiffBlock } from "../platform/markdown.js";
 import { isDiffBlock } from "./markdown-stream.js";
@@ -34,7 +35,7 @@ export interface StaticHistoryProps {
 }
 
 function renderBody(text: string, width: number, diff?: boolean) {
-  return diff ?? isDiffBlock(text) ? (
+  return (diff ?? isDiffBlock(text)) ? (
     <InkDiffBlock text={text} width={width} />
   ) : (
     <AssistantBody text={text} width={width} />

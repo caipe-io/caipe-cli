@@ -59,7 +59,7 @@ describe("OSC 8 links", () => {
   });
 
   it("replaces markdown links", () => {
-    const md = "See [Grid](https://grid.outshift.io) for docs.";
+    const md = "See [Grid](https://grid.example.com) for docs.";
     const out = replaceMarkdownLinksWithOsc8(md);
     expect(out).not.toContain("](https://");
     expect(out).toContain("Grid");

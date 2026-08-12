@@ -1,10 +1,11 @@
 import { Box } from "ink";
-import React, { useMemo } from "react";
+import type React from "react";
+import { useMemo } from "react";
 
+import { isUnifiedDiffText } from "../diff.js";
 import { AnsiMarkdown } from "./AnsiMarkdown.js";
 import { splitAssistantSegments } from "./assistant-segments.js";
 import { InkDiffBlock } from "./ink-diff.js";
-import { isUnifiedDiffText } from "../diff.js";
 
 export interface AssistantBodyProps {
   text: string;
@@ -26,8 +27,10 @@ export function AssistantBody({ text, width }: AssistantBodyProps): React.ReactE
     <Box flexDirection="column">
       {segments.map((seg, index) =>
         seg.kind === "diff" ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: segments are a fixed re-parse of one message's text, never reordered or spliced.
           <InkDiffBlock key={`d-${index}`} text={seg.text} width={width} />
         ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: segments are a fixed re-parse of one message's text, never reordered or spliced.
           <AnsiMarkdown key={`m-${index}`} width={width}>
             {seg.text}
           </AnsiMarkdown>

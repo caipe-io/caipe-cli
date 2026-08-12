@@ -7,11 +7,11 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createSession,
+  filterSessions,
   loadSession,
   patchSessionConversationId,
   resolveSessionIdByArg,
   saveSession,
-  filterSessions,
 } from "../src/chat/history";
 
 const TEST_HOME = join(process.cwd(), ".test-sessions-home");

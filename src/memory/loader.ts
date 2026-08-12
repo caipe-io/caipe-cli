@@ -121,10 +121,11 @@ export function memoryFilePaths(cwd: string): string[] {
     const managedDir = join(claudeDir, "memory");
     if (existsSync(managedDir)) {
       try {
-        readdirSync(managedDir)
+        for (const f of readdirSync(managedDir)
           .filter((f) => f.endsWith(".md"))
-          .sort()
-          .forEach((f) => paths.push(join(managedDir, f)));
+          .sort()) {
+          paths.push(join(managedDir, f));
+        }
       } catch {
         /* ignore */
       }

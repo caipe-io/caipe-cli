@@ -44,6 +44,20 @@ export interface Settings {
     /** Default dynamic agent id when --agent is omitted or `default` (CAIPE_DEFAULT_AGENT overrides) */
     default?: string;
   };
+  kb?: {
+    /** Knowledge Base RAG REST API base URL (CAIPE_KB_URL overrides) */
+    url?: string;
+  };
+}
+
+export class KbNotConfigured extends Error {
+  constructor() {
+    super(
+      "No Knowledge Base API URL configured. Run `caipe config set kb.url https://your-kb-api.example.com` " +
+        "or set CAIPE_KB_URL.",
+    );
+    this.name = "KbNotConfigured";
+  }
 }
 
 export class ServerNotConfigured extends Error {
@@ -160,6 +174,7 @@ export function readSettings(): Settings {
       auth: { ...DEFAULT_SETTINGS.auth, ...saved.auth },
       setup: saved.setup,
       agent: saved.agent,
+      kb: saved.kb,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -264,6 +279,28 @@ export function getConfiguredDefaultAgent(): string | undefined {
   const fromSettings = readSettings().agent?.default;
   if (fromSettings && fromSettings.trim() !== "") return fromSettings.trim();
   return undefined;
+}
+
+/**
+ * Resolve the Knowledge Base RAG REST API base URL.
+ *
+ * Priority: flagOverride → CAIPE_KB_URL → settings.kb.url
+ *
+ * Throws KbNotConfigured when nothing is configured.
+ */
+export function getKbUrl(flagOverride?: string): string {
+  if (flagOverride && flagOverride.trim() !== "") {
+    return normalizeUrl(flagOverride);
+  }
+  const env = process.env.CAIPE_KB_URL;
+  if (env && env.trim() !== "") {
+    return normalizeUrl(env);
+  }
+  const fromSettings = readSettings().kb?.url;
+  if (fromSettings && fromSettings.trim() !== "") {
+    return normalizeUrl(fromSettings);
+  }
+  throw new KbNotConfigured();
 }
 
 /** Endpoints derived from the caipe-ui (auth) URL. */

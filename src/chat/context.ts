@@ -12,9 +12,9 @@
  */
 // assisted-by claude code claude-sonnet-4-6
 
+import type { TokenSet } from "../auth/keychain.js";
 import { buildMemoryContext, loadMemoryFiles } from "../memory/loader.js";
 import { findRepoRoot, recentLog, sampleFileTree } from "../platform/git.js";
-import type { TokenSet } from "../auth/keychain.js";
 
 const MAX_CONTEXT_CHARS = 400_000; // ~100k tokens
 
@@ -26,8 +26,7 @@ export interface ClientUserContext {
 
 export function clientUserFromTokenSet(tokens: TokenSet | null | undefined): ClientUserContext {
   if (!tokens) return {};
-  const email =
-    tokens.email ?? (tokens.identity?.includes("@") ? tokens.identity : undefined);
+  const email = tokens.email ?? (tokens.identity?.includes("@") ? tokens.identity : undefined);
   const sub = tokens.identity && !tokens.identity.includes("@") ? tokens.identity : undefined;
   return {
     email,

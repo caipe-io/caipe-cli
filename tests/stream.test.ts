@@ -143,12 +143,12 @@ describe("AguiAdapter", () => {
           new TextEncoder().encode(
             sseFrame("RUN_STARTED", { runId: "r1" }) +
               sseFrame("TOOL_CALL_START", { toolCallId: "tc1", toolCallName: "write_file" }) +
-              sseFrame("TOOL_CALL_ARGS", { toolCallId: "tc1", delta: "{\"path\":\"a.ts\"}" }) +
+              sseFrame("TOOL_CALL_ARGS", { toolCallId: "tc1", delta: '{"path":"a.ts"}' }) +
               sseFrame("TOOL_CALL_END", { toolCallId: "tc1" }) +
               sseFrame("TOOL_CALL_RESULT", {
                 messageId: "m1",
                 toolCallId: "tc1",
-                content: "{\"status\":\"ok\"}",
+                content: '{"status":"ok"}',
               }) +
               sseFrame("RUN_FINISHED", { runId: "r1", outcome: "success" }),
           ),
@@ -243,7 +243,7 @@ describe("AguiAdapter", () => {
   it("uses agentName from payload when agent name is 'default'", async () => {
     let capturedBody = "";
     const originalFetch = global.fetch;
-    global.fetch = vi.fn((url, init) => {
+    global.fetch = vi.fn((_url, init) => {
       capturedBody = (init?.body as string) ?? "";
       return Promise.resolve(new Response("error", { status: 503 }));
     }) as unknown as typeof fetch;

@@ -13,9 +13,9 @@
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
-import { fetchAgents, getAgent } from "../agents/registry.js";
 import { AgentPicker } from "../agents/AgentPicker.js";
 import { filterAgents, sortAgentsForPicker } from "../agents/picker.js";
+import { fetchAgents, getAgent } from "../agents/registry.js";
 import type { Agent } from "../agents/types.js";
 import { loginBrowser } from "../auth/oauth.js";
 import { getValidToken } from "../auth/tokens.js";
@@ -26,53 +26,48 @@ import {
   readSettings,
   settingsJsonPath,
 } from "../platform/config.js";
-import { type ToolActivityRun, ToolActivityPanel } from "../platform/display.js";
-import { maxStaticToolTreeRows } from "../platform/terminal/repl-ui.js";
+import { ToolActivityPanel, type ToolActivityRun } from "../platform/display.js";
 import { getMarkdownLayoutWidth, getTerminalWidth } from "../platform/markdown.js";
-import { StaticHistory } from "./StaticHistory.js";
-import { SessionPicker } from "./SessionPicker.js";
-import { StreamingStatusPanel, type LiveToolRefEntry } from "./StreamingStatusPanel.js";
+import { maxStaticToolTreeRows } from "../platform/terminal/repl-ui.js";
 import { fetchSupervisorSkills } from "../skills/catalog.js";
+import { SessionPicker } from "./SessionPicker.js";
+import { ShellApprovalPrompt } from "./ShellApprovalPrompt.js";
+import { StaticHistory } from "./StaticHistory.js";
+import { type LiveToolRefEntry, StreamingStatusPanel } from "./StreamingStatusPanel.js";
 import type { ChatSession } from "./history.js";
 import {
+  type SessionSummary,
   filterSessions,
   listSessions,
   loadSession,
   patchSessionConversationId,
   resolveSessionIdByArg,
   saveSession,
-  type SessionSummary,
 } from "./history.js";
-import { streamPlainTextEnabled } from "./markdown-stream.js";
-import { ShellApprovalPrompt } from "./ShellApprovalPrompt.js";
-import { isShellHitlEnabled, type ShellApprovalRequest } from "./shell-hitl.js";
-import { parseInput, pipeThrough, runShellCommand } from "./pipes.js";
 import {
+  type LineEditSession,
   applyLineEditKey,
   createLineEditSession,
   insertText,
   lastWordFromHistoryLine,
-  type LineEditSession,
-  type TerminalKey,
 } from "./line-edit.js";
+import { streamPlainTextEnabled } from "./markdown-stream.js";
 import {
+  PICKER_PAGE_JUMP,
+  SLASH_PICKER_VISIBLE,
   clampPickerIndex,
   movePickerIndex,
   pagePickerIndex,
-  PICKER_PAGE_JUMP,
   pickerWindow,
-  SLASH_PICKER_VISIBLE,
 } from "./picker-nav.js";
-import {
-  FOOTER_HINT_IDLE,
-  SHORTCUT_AGENT_PICKER,
-  SHORTCUT_SLASH_COMMANDS,
-} from "./shortcuts.js";
+import { parseInput, pipeThrough, runShellCommand } from "./pipes.js";
 import { extractRecap } from "./recap.js";
-import { commandFromToolArgsBuffer } from "./tool-detail.js";
-import { patchFromToolCall } from "./tool-patch.js";
+import { type ShellApprovalRequest, isShellHitlEnabled } from "./shell-hitl.js";
+import { FOOTER_HINT_IDLE, SHORTCUT_AGENT_PICKER, SHORTCUT_SLASH_COMMANDS } from "./shortcuts.js";
 import { createAdapter } from "./stream.js";
 import type { StreamAdapter } from "./stream.js";
+import { commandFromToolArgsBuffer } from "./tool-detail.js";
+import { patchFromToolCall } from "./tool-patch.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -249,7 +244,8 @@ function InputBar({
   onTabComplete,
   onEscape,
   onOpenAgentPicker,
-  onOpenSlashPicker,
+  // onOpenSlashPicker: accepted for parity with onOpenAgentPicker, but no
+  // keybinding in this component fires it yet (see call site below).
   pickerNav,
   disabled = false,
   history = [],
@@ -344,9 +340,7 @@ function InputBar({
         if (termKey.ctrl && char === "r") {
           const matches = revMatches(revSearch.query);
           if (matches.length > 0) {
-            setRevSearch((s) =>
-              s ? { ...s, match: (s.match + 1) % matches.length } : s,
-            );
+            setRevSearch((s) => (s ? { ...s, match: (s.match + 1) % matches.length } : s));
             const m = matches[(revSearch.match + 1) % matches.length];
             if (m) applyOutcome(m, m.length);
           }
@@ -428,12 +422,7 @@ function InputBar({
         return;
       }
 
-      const outcome = applyLineEditKey(
-        { value, cursor },
-        editSessionRef.current,
-        char,
-        termKey,
-      );
+      const outcome = applyLineEditKey({ value, cursor }, editSessionRef.current, char, termKey);
 
       if (outcome?.beginReverseSearch) {
         setRevSearch({ query: "", match: 0 });
@@ -469,9 +458,7 @@ function InputBar({
   return (
     <Box flexDirection="column" paddingX={1}>
       {revSearch ? (
-        <Text dimColor>
-          {`(reverse-i-search)\`${revSearch.query}': ${value}`}
-        </Text>
+        <Text dimColor>{`(reverse-i-search)\`${revSearch.query}': ${value}`}</Text>
       ) : null}
       <Box>
         <Text color={disabled ? "gray" : "green"} bold>
@@ -484,9 +471,7 @@ function InputBar({
           </Text>
         )}
         <Text>{after}</Text>
-        {pickerActive && (
-          <Text dimColor> ↑↓ PgUp/Dn · Tab · Enter · Esc</Text>
-        )}
+        {pickerActive && <Text dimColor> ↑↓ PgUp/Dn · Tab · Enter · Esc</Text>}
       </Box>
     </Box>
   );
@@ -723,9 +708,7 @@ export function Repl({
     staticKeyRef.current = key;
     setStaticItems(items);
     historyRef.current = history;
-    const approxTokens = Math.ceil(
-      loaded.messages.reduce((n, m) => n + m.content.length, 0) / 4,
-    );
+    const approxTokens = Math.ceil(loaded.messages.reduce((n, m) => n + m.content.length, 0) / 4);
     tokenCountRef.current = approxTokens;
     setTotalTokenDisplay(approxTokens);
   }, []);
@@ -753,14 +736,11 @@ export function Repl({
     applySessionTranscript(session);
     const shortId = session.sessionId.slice(0, 8);
     pushAssistantPlain(
-      `Resumed session ${shortId} · ${session.messages.length} message(s)` +
-        (session.conversationId ? " · server thread linked" : ""),
+      `Resumed session ${shortId} · ${session.messages.length} message(s)${
+        session.conversationId ? " · server thread linked" : ""
+      }`,
     );
-  }, [
-    session,
-    applySessionTranscript,
-    pushAssistantPlain,
-  ]);
+  }, [session, applySessionTranscript, pushAssistantPlain]);
 
   const recordCompletedToolRun = useCallback((r: LiveToolRefEntry, completedAt: number) => {
     turnToolRunsRef.current.push({
@@ -825,18 +805,15 @@ export function Repl({
     }, 400);
   }, []);
 
-  const tryCaptureToolDiff = useCallback(
-    (toolCallId: string, resultContent?: string) => {
-      if (toolDiffSeenRef.current.has(toolCallId)) return;
-      const name = toolNameByCallIdRef.current.get(toolCallId) ?? "tool";
-      const argsJson = toolArgsBufferRef.current.get(toolCallId);
-      const patch = patchFromToolCall(name, argsJson, resultContent);
-      if (!patch) return;
-      toolDiffSeenRef.current.add(toolCallId);
-      pendingToolDiffsRef.current.push(patch.unifiedDiff);
-    },
-    [],
-  );
+  const tryCaptureToolDiff = useCallback((toolCallId: string, resultContent?: string) => {
+    if (toolDiffSeenRef.current.has(toolCallId)) return;
+    const name = toolNameByCallIdRef.current.get(toolCallId) ?? "tool";
+    const argsJson = toolArgsBufferRef.current.get(toolCallId);
+    const patch = patchFromToolCall(name, argsJson, resultContent);
+    if (!patch) return;
+    toolDiffSeenRef.current.add(toolCallId);
+    pendingToolDiffsRef.current.push(patch.unifiedDiff);
+  }, []);
 
   const pushPendingToolDiffs = useCallback(() => {
     const diffs = pendingToolDiffsRef.current;
@@ -935,9 +912,7 @@ export function Repl({
     const query = input.slice(1).toLowerCase().trim();
     if (query === "") return SLASH_COMMANDS;
     return SLASH_COMMANDS.filter(
-      (c) =>
-        c.name.slice(1).includes(query) ||
-        c.description.toLowerCase().includes(query),
+      (c) => c.name.slice(1).includes(query) || c.description.toLowerCase().includes(query),
     );
   }, [input]);
 
@@ -968,13 +943,14 @@ export function Repl({
   useEffect(() => {
     if (!sessionPickerActive) return;
     setSessionPickerIndex((i) => clampPickerIndex(i, sessionPickerFiltered.length));
-  }, [input, sessionPickerActive, sessionPickerFiltered.length]);
+  }, [sessionPickerActive, sessionPickerFiltered.length]);
 
   useEffect(() => {
     if (!agentPickerActive) return;
     setAgentPickerIndex((i) => clampPickerIndex(i, agentPickerFiltered.length));
-  }, [input, agentPickerActive, agentPickerFiltered.length]);
+  }, [agentPickerActive, agentPickerFiltered.length]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `input` is an intentional reset trigger (not read in the body) so the slash-command selection jumps back to the top whenever the filter text changes, not only when the picker opens/closes.
   useEffect(() => {
     if (!showPicker) return;
     setPickerIndex(0);
@@ -1117,8 +1093,9 @@ export function Repl({
 
         const shortId = loaded.sessionId.slice(0, 8);
         pushAssistantPlain(
-          `Resumed session ${shortId} · ${loaded.messages.length} message(s)` +
-            (loaded.conversationId ? " · server thread linked" : ""),
+          `Resumed session ${shortId} · ${loaded.messages.length} message(s)${
+            loaded.conversationId ? " · server thread linked" : ""
+          }`,
         );
       } catch (err) {
         pushAssistantPlain(`[ERROR] ${err instanceof Error ? err.message : String(err)}`);
@@ -1172,7 +1149,10 @@ export function Repl({
       })();
       const agents = await fetchAgents(sv, () => getValidToken(authUrl2));
       const sorted = sortAgentsForPicker(agents, currentAgent.name);
-      const idx = Math.max(0, sorted.findIndex((a) => a.name === currentAgent.name));
+      const idx = Math.max(
+        0,
+        sorted.findIndex((a) => a.name === currentAgent.name),
+      );
       setAgentPickerCatalog(sorted);
       setAgentPickerIndex(idx);
       setInput("");
@@ -1354,8 +1334,7 @@ export function Repl({
               authUrl = serverUrl ?? "";
             }
             const tokens = await loginBrowser(authUrl, "caipe-cli");
-            const who =
-              tokens.email || tokens.displayName || tokens.identity || "(authenticated)";
+            const who = tokens.email || tokens.displayName || tokens.identity || "(authenticated)";
             pushAssistant(`Re-authenticated as **${who}**.`);
           } catch (err) {
             pushAssistant(
@@ -1414,7 +1393,7 @@ export function Repl({
               `- **auth.url** = \`${s.auth?.url ?? "(not set)"}\``,
               `- **auth.idp-hint** = \`${s.auth?.idpHint ?? "(not set)"}\``,
               `- **auth.credential-storage** = \`${s.auth?.credentialStorage ?? "encrypted-file"}\``,
-              `\nTo edit, set **EDITOR** or run \`caipe config set <key> <value>\``,
+              "\nTo edit, set **EDITOR** or run `caipe config set <key> <value>`",
             ];
             pushAssistant(lines.join("\n"));
           }
@@ -1425,7 +1404,17 @@ export function Repl({
           pushAssistant(`Unknown command: ${cmd}. Type / to see available commands.`);
       }
     },
-    [handleExit, pushAssistant, pushAssistantPlain, streaming, serverUrl, currentAgent, switchToAgent, openAgentPicker, openSessionPicker, resumeSessionById],
+    [
+      handleExit,
+      pushAssistant,
+      pushAssistantPlain,
+      streaming,
+      serverUrl,
+      switchToAgent,
+      openAgentPicker,
+      openSessionPicker,
+      resumeSessionById,
+    ],
   );
 
   // ── Submit: greeting / shell escape / pipe / agent prompt ──
@@ -1572,10 +1561,7 @@ export function Repl({
         if (streamPlainTextEnabled()) {
           syncStaticFromHistory();
         } else {
-          const turnElapsed = Math.max(
-            0,
-            Math.floor((Date.now() - streamStartRef.current) / 1000),
-          );
+          const turnElapsed = Math.max(0, Math.floor((Date.now() - streamStartRef.current) / 1000));
           clearToolRuns(turnElapsed);
           pushPendingToolDiffs();
           if (finalContent) {
@@ -1588,10 +1574,7 @@ export function Repl({
       } finally {
         pendingTokensRef.current = "";
         if (streamPlainTextEnabled()) {
-          const turnElapsed = Math.max(
-            0,
-            Math.floor((Date.now() - streamStartRef.current) / 1000),
-          );
+          const turnElapsed = Math.max(0, Math.floor((Date.now() - streamStartRef.current) / 1000));
           clearToolRuns(turnElapsed);
         }
         setStreaming(false);
@@ -1599,8 +1582,6 @@ export function Repl({
       }
     },
     [
-      adapter,
-      session,
       systemContext,
       currentAgent,
       executeSlashCommand,
@@ -1679,7 +1660,14 @@ export function Repl({
     }
     if (!showPicker || filteredCommands.length === 0) return;
     setPickerIndex((i) => movePickerIndex(i, filteredCommands.length, -1));
-  }, [sessionPickerActive, sessionPickerFiltered.length, agentPickerActive, agentPickerFiltered.length, showPicker, filteredCommands.length]);
+  }, [
+    sessionPickerActive,
+    sessionPickerFiltered.length,
+    agentPickerActive,
+    agentPickerFiltered.length,
+    showPicker,
+    filteredCommands.length,
+  ]);
 
   const handleDown = useCallback(() => {
     if (sessionPickerActive && sessionPickerFiltered.length > 0) {
@@ -1692,7 +1680,14 @@ export function Repl({
     }
     if (!showPicker || filteredCommands.length === 0) return;
     setPickerIndex((i) => movePickerIndex(i, filteredCommands.length, 1));
-  }, [sessionPickerActive, sessionPickerFiltered.length, agentPickerActive, agentPickerFiltered.length, showPicker, filteredCommands.length]);
+  }, [
+    sessionPickerActive,
+    sessionPickerFiltered.length,
+    agentPickerActive,
+    agentPickerFiltered.length,
+    showPicker,
+    filteredCommands.length,
+  ]);
 
   const handlePageUp = useCallback(() => {
     if (sessionPickerActive && sessionPickerFiltered.length > 0) {
@@ -1709,7 +1704,14 @@ export function Repl({
     }
     if (!showPicker || filteredCommands.length === 0) return;
     setPickerIndex((i) => pagePickerIndex(i, filteredCommands.length, PICKER_PAGE_JUMP, -1));
-  }, [sessionPickerActive, sessionPickerFiltered.length, agentPickerActive, agentPickerFiltered.length, showPicker, filteredCommands.length]);
+  }, [
+    sessionPickerActive,
+    sessionPickerFiltered.length,
+    agentPickerActive,
+    agentPickerFiltered.length,
+    showPicker,
+    filteredCommands.length,
+  ]);
 
   const handlePageDown = useCallback(() => {
     if (sessionPickerActive && sessionPickerFiltered.length > 0) {
@@ -1726,16 +1728,25 @@ export function Repl({
     }
     if (!showPicker || filteredCommands.length === 0) return;
     setPickerIndex((i) => pagePickerIndex(i, filteredCommands.length, PICKER_PAGE_JUMP, 1));
-  }, [agentPickerActive, agentPickerFiltered.length, showPicker, filteredCommands.length]);
+  }, [
+    sessionPickerActive,
+    sessionPickerFiltered.length,
+    agentPickerActive,
+    agentPickerFiltered.length,
+    showPicker,
+    filteredCommands.length,
+  ]);
 
   const handleTabComplete = useCallback(() => {
     if (sessionPickerActive && sessionPickerFiltered.length > 0) {
-      const s = sessionPickerFiltered[clampPickerIndex(sessionPickerIndex, sessionPickerFiltered.length)];
+      const s =
+        sessionPickerFiltered[clampPickerIndex(sessionPickerIndex, sessionPickerFiltered.length)];
       if (s) setInput(s.sessionId);
       return;
     }
     if (agentPickerActive && agentPickerFiltered.length > 0) {
-      const agent = agentPickerFiltered[clampPickerIndex(agentPickerIndex, agentPickerFiltered.length)];
+      const agent =
+        agentPickerFiltered[clampPickerIndex(agentPickerIndex, agentPickerFiltered.length)];
       if (agent) setInput(agent.name);
       return;
     }

@@ -7,7 +7,11 @@
 import { Marked } from "marked";
 import { markedTerminal } from "marked-terminal";
 
-import { getTerminalCapabilities, getTerminalWidth, isRichTerminalEnabled } from "./capabilities.js";
+import {
+  getTerminalCapabilities,
+  getTerminalWidth,
+  isRichTerminalEnabled,
+} from "./capabilities.js";
 import { markedListInlineExtension } from "./marked-list-fix.js";
 import { markedTableWidthExtension } from "./marked-table-width.js";
 import { plainTextFromMarkdown } from "./plain-markdown.js";
@@ -55,16 +59,18 @@ function shortenTableUrls(source: string, maxLen = 56): string {
     .map((line) => {
       if (!line.trim().startsWith("|")) return line;
       const protectedLinks: string[] = [];
-      const masked = line.replace(
-        /\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g,
-        (link) => {
-          const id = protectedLinks.length;
-          protectedLinks.push(link);
-          return `\x00MDLINK${id}\x00`;
-        },
+      const masked = line.replace(/\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, (link) => {
+        const id = protectedLinks.length;
+        protectedLinks.push(link);
+        return `\x00MDLINK${id}\x00`;
+      });
+      const shortened = masked.replace(/https?:\/\/[^\s|)]+/g, (url) =>
+        shortenUrlForDisplay(url, maxLen),
       );
-      const shortened = masked.replace(/https?:\/\/[^\s|)]+/g, (url) => shortenUrlForDisplay(url, maxLen));
-      return shortened.replace(MD_LINK_PLACEHOLDER, (_, id: string) => protectedLinks[Number(id)] ?? "");
+      return shortened.replace(
+        MD_LINK_PLACEHOLDER,
+        (_, id: string) => protectedLinks[Number(id)] ?? "",
+      );
     })
     .join("\n");
 }
@@ -116,9 +122,7 @@ export function renderMarkdownToAnsi(
   const input = preprocessSource(trimmed);
   const marked = createMarked(Math.max(20, width));
 
-  const wantOsc8 =
-    options.osc8Links ??
-    (process.env.CAIPE_HYPERLINKS === "1" && caps.osc8Links);
+  const wantOsc8 = options.osc8Links ?? (process.env.CAIPE_HYPERLINKS === "1" && caps.osc8Links);
   const prevForce = process.env.FORCE_HYPERLINK;
   if (!wantOsc8) process.env.FORCE_HYPERLINK = "0";
 

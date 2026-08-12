@@ -1,5 +1,5 @@
-import type { Agent } from "./types.js";
 import { pickerWindow } from "../chat/picker-nav.js";
+import type { Agent } from "./types.js";
 
 export { pickerWindow };
 

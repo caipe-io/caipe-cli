@@ -69,7 +69,7 @@ describe("line-edit (clean-room)", () => {
       delete: false,
       tab: false,
     });
-    expect(y?.buffer.value).toBe(killed.killed + "suffix");
+    expect(y?.buffer.value).toBe(`${killed.killed}suffix`);
   });
 
   it("deletes forward with Ctrl+d when line is non-empty", () => {
@@ -99,25 +99,20 @@ describe("line-edit (clean-room)", () => {
   });
 
   it("signals eof on Ctrl+d with empty line", () => {
-    const out = applyLineEditKey(
-      { value: "", cursor: 0 },
-      createLineEditSession(),
-      "d",
-      {
-        ctrl: true,
-        meta: false,
-        shift: false,
-        upArrow: false,
-        downArrow: false,
-        leftArrow: false,
-        rightArrow: false,
-        return: false,
-        escape: false,
-        backspace: false,
-        delete: false,
-        tab: false,
-      },
-    );
+    const out = applyLineEditKey({ value: "", cursor: 0 }, createLineEditSession(), "d", {
+      ctrl: true,
+      meta: false,
+      shift: false,
+      upArrow: false,
+      downArrow: false,
+      leftArrow: false,
+      rightArrow: false,
+      return: false,
+      escape: false,
+      backspace: false,
+      delete: false,
+      tab: false,
+    });
     expect(out?.signal).toBe("eof");
   });
 

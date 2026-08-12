@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  findChromiumExecutable,
-  resolveAuthBrowserMode,
-} from "../src/auth/browser-isolated";
+import { findChromiumExecutable, resolveAuthBrowserMode } from "../src/auth/browser-isolated";
 
 describe("resolveAuthBrowserMode", () => {
   const prev = process.env.CAIPE_AUTH_BROWSER;

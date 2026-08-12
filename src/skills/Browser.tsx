@@ -9,7 +9,7 @@ import { Box, Text, useApp, useInput } from "ink";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Spinner } from "../platform/display.js";
-import { getMarkdownLayoutWidth, AnsiMarkdown } from "../platform/markdown.js";
+import { AnsiMarkdown, getMarkdownLayoutWidth } from "../platform/markdown.js";
 import type { CatalogEntry } from "./catalog.js";
 
 // ---------------------------------------------------------------------------

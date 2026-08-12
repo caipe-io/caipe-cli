@@ -21,7 +21,8 @@ type SupportedKey =
   | "auth.apiKey"
   | "auth.credential-storage"
   | "auth.idp-hint"
-  | "agent.default";
+  | "agent.default"
+  | "kb.url";
 
 const SUPPORTED_KEYS: SupportedKey[] = [
   "auth.url",
@@ -30,6 +31,7 @@ const SUPPORTED_KEYS: SupportedKey[] = [
   "auth.credential-storage",
   "auth.idp-hint",
   "agent.default",
+  "kb.url",
 ];
 
 const CREDENTIAL_STORAGE_VALUES = ["encrypted-file", "keychain"] as const;
@@ -135,6 +137,15 @@ export async function runConfigSet(key: string, value: string): Promise<void> {
     process.stdout.write(`Set agent.default = ${id}\n`);
     return;
   }
+
+  if (key === "kb.url") {
+    const url = normalizeConfigUrl(value, "kb.url");
+    const settings = readSettings();
+    settings.kb = { ...settings.kb, url };
+    writeSettings(settings);
+    process.stdout.write(`Set kb.url = ${url}\n`);
+    return;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +196,14 @@ export async function runConfigGet(key: string, opts: { json?: boolean }): Promi
     } else {
       value = settings.agent?.default;
     }
+  } else if (key === "kb.url") {
+    const envVal = process.env.CAIPE_KB_URL;
+    if (envVal) {
+      value = envVal;
+      source = "CAIPE_KB_URL env var";
+    } else {
+      value = settings.kb?.url;
+    }
   }
 
   if (opts.json) {
@@ -230,6 +249,8 @@ export async function runConfigUnset(key: string): Promise<void> {
     settings.auth.idpHint = undefined;
   } else if (key === "agent.default" && settings.agent) {
     settings.agent.default = undefined;
+  } else if (key === "kb.url" && settings.kb) {
+    settings.kb.url = undefined;
   }
 
   writeSettings(settings);
@@ -254,8 +275,7 @@ export async function runConfigDiscover(): Promise<void> {
   const discovery = await discoverAuthIssuer(serverUrl);
   if (!discovery) {
     process.stderr.write(
-      `[ERROR] Could not discover OAuth issuer for ${serverUrl} ` +
-        `(tried well-known URLs and host heuristics; set auth.url manually)\n`,
+      `[ERROR] Could not discover OAuth issuer for ${serverUrl} (tried well-known URLs and host heuristics; set auth.url manually)\n`,
     );
     process.exit(3);
   }

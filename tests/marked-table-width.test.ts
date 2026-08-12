@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { renderMarkdownToAnsi } from "../src/platform/terminal/ansi-markdown.js";
 import {
   ansiFitsWidth,
   layoutTableColWidths,
   maxVisibleLineWidth,
   tableBorderSlack,
 } from "../src/platform/terminal/marked-table-width.js";
-import { renderMarkdownToAnsi } from "../src/platform/terminal/ansi-markdown.js";
 
 describe("tableBorderSlack", () => {
   it("accounts for cli-table3 borders per column count", () => {
@@ -37,7 +37,7 @@ describe("layoutTableColWidths", () => {
     const cols = layoutTableColWidths(3, 72, headers);
     expect(cols[0]).toBe(5);
     expect(cols[2]).toBeGreaterThanOrEqual(16);
-    expect(cols[2]).toBeGreaterThan(cols[1]);
+    expect(cols[2]).toBeGreaterThan(Number(cols[1]));
   });
 
   it("splits two-column tables path vs description", () => {

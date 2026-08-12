@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { oidcClaimsFromJwt } from "../src/auth/claims.js";
-import {
-  clientUserFromTokenSet,
-  formatClientContextBlock,
-} from "../src/chat/context.js";
 import type { TokenSet } from "../src/auth/keychain.js";
+import { clientUserFromTokenSet, formatClientContextBlock } from "../src/chat/context.js";
 
 function fakeJwt(payload: Record<string, unknown>): string {
   const header = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url");
@@ -42,10 +39,10 @@ describe("formatClientContextBlock", () => {
   it("derives email from token set", () => {
     const tokens: TokenSet = {
       accessToken: "x",
-      email: "agent-user@grid.outshift.io",
+      email: "agent-user@grid.example.com",
       displayName: "Agent User",
       identity: "uuid-sub",
     };
-    expect(clientUserFromTokenSet(tokens).email).toBe("agent-user@grid.outshift.io");
+    expect(clientUserFromTokenSet(tokens).email).toBe("agent-user@grid.example.com");
   });
 });

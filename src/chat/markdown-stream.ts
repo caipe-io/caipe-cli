@@ -28,7 +28,7 @@ export function partitionMarkdown(source: string): MarkdownPartition {
   for (const line of lines) {
     const fence = line.match(/^(`{3,}|~{3,})/);
     if (fence) {
-      const marker = fence[1];
+      const marker = fence[1] ?? "";
       if (!inFence) {
         inFence = true;
         fenceMarker = marker;

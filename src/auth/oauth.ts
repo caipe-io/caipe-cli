@@ -17,9 +17,9 @@ import { promisify } from "node:util";
 import { getIdpHint, getServerUrl } from "../platform/config.js";
 import { discoverOAuthAgentConfig, resolveOAuthEndpoints } from "../platform/discovery.js";
 import {
+  type LoginBrowserModeOptions,
   findChromiumExecutable,
   launchIsolatedBrowser,
-  type LoginBrowserModeOptions,
   resolveAuthBrowserMode,
 } from "./browser-isolated.js";
 import { mergeOidcClaims, oidcClaimsFromJwt } from "./claims.js";

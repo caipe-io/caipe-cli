@@ -1,7 +1,7 @@
 import { Box, Text, useInput } from "ink";
-import React from "react";
+import type React from "react";
 
-import { shellApprovalTitle, type ShellApprovalRequest } from "./shell-hitl.js";
+import { type ShellApprovalRequest, shellApprovalTitle } from "./shell-hitl.js";
 
 export interface ShellApprovalPromptProps {
   request: ShellApprovalRequest;

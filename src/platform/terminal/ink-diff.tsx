@@ -3,7 +3,8 @@
  */
 
 import { Box, Text } from "ink";
-import React, { useMemo } from "react";
+import type React from "react";
+import { useMemo } from "react";
 
 import { isRichTerminalEnabled } from "./capabilities.js";
 
@@ -78,11 +79,7 @@ export function InkDiffBlock({ text, width }: InkDiffBlockProps): React.ReactEle
     <Box flexDirection="column" width={width} marginY={0}>
       {lines.map((row, index) => {
         const bg =
-          rich && row.kind === "add"
-            ? "green"
-            : rich && row.kind === "del"
-              ? "red"
-              : undefined;
+          rich && row.kind === "add" ? "green" : rich && row.kind === "del" ? "red" : undefined;
         const fg =
           row.kind === "add"
             ? rich
@@ -95,12 +92,19 @@ export function InkDiffBlock({ text, width }: InkDiffBlockProps): React.ReactEle
               : undefined;
 
         return (
-          <Box key={index} backgroundColor={bg} flexDirection="row">
-            <Text dimColor={row.kind === "meta"}>
+          // ink 5 has no Box-level background; the row tint lives on the Text nodes.
+          // biome-ignore lint/suspicious/noArrayIndexKey: lines are a fixed re-parse of one diff's text, never reordered or spliced.
+          <Box key={index} flexDirection="row">
+            <Text backgroundColor={bg} dimColor={row.kind === "meta"}>
               {gutterCell(row.oldNum)}
               {row.kind === "add" || row.kind === "context" ? gutterCell(row.newNum) : "    "}
             </Text>
-            <Text color={fg} dimColor={row.kind === "meta"} wrap="truncate-end">
+            <Text
+              backgroundColor={bg}
+              color={fg}
+              dimColor={row.kind === "meta"}
+              wrap="truncate-end"
+            >
               {row.display}
             </Text>
           </Box>

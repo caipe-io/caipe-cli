@@ -51,9 +51,7 @@ export function filterSessions(sessions: SessionSummary[], query: string): Sessi
   const q = query.trim().toLowerCase();
   if (!q) return sessions;
   return sessions.filter(
-    (s) =>
-      s.sessionId.toLowerCase().includes(q) ||
-      s.agentName.toLowerCase().includes(q),
+    (s) => s.sessionId.toLowerCase().includes(q) || s.agentName.toLowerCase().includes(q),
   );
 }
 
@@ -167,7 +165,10 @@ export function resolveSessionIdByArg(
 ): { ok: true; sessionId: string } | { ok: false; message: string } {
   const trimmed = arg.trim();
   if (!trimmed) {
-    return { ok: false, message: "Usage: /resume <sessionId>  (or /resume to list saved sessions)" };
+    return {
+      ok: false,
+      message: "Usage: /resume <sessionId>  (or /resume to list saved sessions)",
+    };
   }
   const all = listSessions();
   const exact = all.find((s) => s.sessionId === trimmed);

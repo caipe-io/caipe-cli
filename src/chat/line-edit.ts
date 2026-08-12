@@ -102,7 +102,7 @@ function applyBuffer(
   return { buffer: clampCursor(next), session: s };
 }
 
-export function undoEdit(session: LineEditSession, current: LineBuffer): LineEditOutcome | null {
+export function undoEdit(session: LineEditSession, _current: LineBuffer): LineEditOutcome | null {
   if (session.undoStack.length === 0) return null;
   const undoStack = [...session.undoStack];
   const prev = undoStack.pop()!;
@@ -163,7 +163,10 @@ export function killWordForward(buffer: LineBuffer): { buffer: LineBuffer; kille
   const killed = buffer.value.slice(buffer.cursor, end);
   return {
     killed,
-    buffer: { value: buffer.value.slice(0, buffer.cursor) + buffer.value.slice(end), cursor: buffer.cursor },
+    buffer: {
+      value: buffer.value.slice(0, buffer.cursor) + buffer.value.slice(end),
+      cursor: buffer.cursor,
+    },
   };
 }
 
@@ -174,7 +177,10 @@ export function yankAtCursor(buffer: LineBuffer, session: LineEditSession): Line
   return { buffer: next, session };
 }
 
-export function yankPopAtCursor(buffer: LineBuffer, session: LineEditSession): LineEditOutcome | null {
+export function yankPopAtCursor(
+  buffer: LineBuffer,
+  session: LineEditSession,
+): LineEditOutcome | null {
   if (session.killRing.length < 2) return yankAtCursor(buffer, session);
   const [_, ...rest] = session.killRing;
   const rotated = [...rest, session.killRing[0]!];

@@ -15,8 +15,12 @@
         "noUnusedVariables": "error",
         "noUnusedImports": "error"
       },
+      "performance": {
+        "noDelete": "off"
+      },
       "suspicious": {
-        "noExplicitAny": "warn"
+        "noExplicitAny": "warn",
+        "noControlCharactersInRegex": "off"
       }
     }
   },

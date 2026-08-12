@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { animatedWaitEnabled, maxLiveToolTreeRows, waitStatusTickMs } from "../src/platform/terminal/repl-ui.js";
+import {
+  animatedWaitEnabled,
+  maxLiveToolTreeRows,
+  waitStatusTickMs,
+} from "../src/platform/terminal/repl-ui.js";
 
 describe("repl-ui", () => {
   const env = { ...process.env };

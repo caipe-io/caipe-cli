@@ -1,8 +1,9 @@
 import { Text } from "ink";
-import React, { useMemo } from "react";
+import type React from "react";
+import { useMemo } from "react";
 
-import { getTerminalCapabilities } from "./capabilities.js";
 import { renderMarkdownToAnsi } from "./ansi-markdown.js";
+import { getTerminalCapabilities } from "./capabilities.js";
 
 export interface AnsiMarkdownProps {
   children: string;

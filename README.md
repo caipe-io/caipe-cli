@@ -11,11 +11,11 @@ git clone https://github.com/cnoe-io/caipe-cli.git && cd caipe-cli && bun instal
 # binary: ./dist/caipe  — add to PATH or symlink ~/.local/bin/caipe
 ```
 
-**Point at Grid preview, sign in, chat:**
+**Point at your Grid deployment, sign in, chat:**
 
 ```bash
-caipe config set server.url https://grid.preview.outshift.io
-caipe config set auth.url https://idp.grid.preview.outshift.io/realms/caipe
+caipe config set server.url https://grid.example.com
+caipe config set auth.url https://idp.grid.example.com/realms/caipe
 caipe auth login
 caipe agents list
 caipe chat --agent '<id-from-agents-list>'
@@ -63,7 +63,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup
 Preconfigure the server:
 
 ```bash
-CAIPE_SERVER_URL=https://grid.preview.outshift.io \
+CAIPE_SERVER_URL=https://grid.example.com \
   bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup-caipe-cli.sh)
 ```
 
@@ -146,13 +146,13 @@ caipe chat
 
 `config set server.url` also sets **`auth.url`** to the same value.
 
-### Grid preview (split API vs IdP)
+### Split API vs IdP
 
-On **`grid.preview.outshift.io`**, the BFF may not expose `/oauth/authorize` yet. Point **API** at Grid and **OAuth** at Keycloak:
+On some deployments the BFF may not expose `/oauth/authorize` yet. Point **API** at Grid and **OAuth** at Keycloak:
 
 ```bash
-caipe config set server.url https://grid.preview.outshift.io
-caipe config set auth.url https://idp.grid.preview.outshift.io/realms/caipe
+caipe config set server.url https://grid.example.com
+caipe config set auth.url https://idp.grid.example.com/realms/caipe
 rm -f ~/.config/caipe/agent-config.json
 caipe auth logout    # if you have stale tokens
 caipe auth login
@@ -180,6 +180,8 @@ caipe config set auth.idp-hint duo-sso
 | `CAIPE_STREAM_PLAIN` | Set to `1` for legacy plain-text chunk streaming (no live markdown colors) |
 | `CAIPE_IDP_HINT` | Keycloak `kc_idp_hint` |
 | `CAIPE_TOKEN` | Bearer token (headless / CI) |
+| `CAIPE_KB_URL` | Knowledge Base RAG API base URL |
+| `CAIPE_TENANT_ID` | `X-Tenant-Id` for KB API calls (when not using default tenant) |
 | `CAIPE_API_KEY` | API key where supported |
 
 ### Auth troubleshooting
@@ -239,6 +241,27 @@ caipe auth logout
 
 **OAuth browser:** By default the CLI opens Chrome/Chromium with a **temporary profile** so logging in does not overwrite cookies for an open caipe-ui tab. Set `CAIPE_CHROMIUM_PATH` if Chrome is non-standard. `CAIPE_AUTH_BROWSER=system` restores the old behavior. `CAIPE_AUTH_HEADLESS=1` uses headless mode (often breaks MFA).
 
+### Knowledge Base (scripts / CI)
+
+Non-interactive commands talk to the [CAIPE RAG REST API](https://github.com/cnoe-io/ai-platform-engineering/tree/main/ai_platform_engineering/knowledge_bases/rag) and **always print JSON** to stdout (errors as JSON on stderr).
+
+```bash
+caipe config set kb.url https://your-kb-api.example.com   # or export CAIPE_KB_URL
+caipe auth login   # or export CAIPE_TOKEN / client credentials for CI
+
+caipe kb user info
+caipe kb datasources list
+caipe kb documents list <datasource-id> --limit 50
+caipe kb query --query "how do I deploy SSE?"
+caipe kb chunk get '<chunk-id>'
+
+caipe kb ingest url --url https://docs.example.com/
+caipe kb ingest file ./README.md ./guide.pdf --owner-team-slug my-team
+caipe kb job get <job-id>
+```
+
+Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENANT_ID`).
+
 ---
 
 ## Configuration reference
@@ -249,6 +272,7 @@ caipe auth logout
 | `auth.url` | OAuth and discovery base (Keycloak realm URL or UI URL) |
 | `agent.default` | Default dynamic agent id for `caipe chat` when `--agent` is omitted |
 | `auth.idp-hint` | Skip Keycloak login chooser (`kc_idp_hint`) |
+| `kb.url` | Knowledge Base RAG REST API base URL |
 
 **Rich terminal output (interactive chat):** Markdown is rendered with **react-markdown** + **remark-gfm** as native Ink components (no ANSI markdown strings). Diffs use Ink colors. Block streaming caches completed sections in `<Static>`; the active tail updates in place. Tool runs show in the footer. Chat uses the **alternate screen** unless `CAIPE_NO_ALT_SCREEN=1` or `CAIPE_PLAIN_TERMINAL=1`. Legacy plain streaming: `CAIPE_STREAM_PLAIN=1`.
 | `auth.apiKey` | Static API key (headless alternative) |
@@ -266,6 +290,7 @@ caipe auth logout
 | `caipe auth login\|logout\|status` | OAuth session |
 | `caipe config set\|get\|unset\|discover` | Settings (`discover` sets `auth.url` via well-known URLs or Grid-style heuristics) |
 | `caipe agents list\|info` | Server agents |
+| `caipe kb …` | KB query, read chunks, ingest, jobs, RBAC (`user info`) — JSON only |
 | `caipe skills list\|install\|preview\|update` | Skill catalog |
 | `caipe memory` | Project memory files |
 | `caipe commit` | DCO-aware commit helper |

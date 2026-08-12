@@ -129,8 +129,8 @@ export function StreamingSpinner({
   );
 }
 
-import { formatToolTreeLabel } from "./terminal/tool-label.js";
 import { animatedWaitEnabled } from "./terminal/repl-ui.js";
+import { formatToolTreeLabel } from "./terminal/tool-label.js";
 
 const SHELL_TOOL_NAMES = new Set([
   "bash",
@@ -163,8 +163,9 @@ export interface UserMessageBarProps {
 export function UserMessageBar({ text, width }: UserMessageBarProps): React.ReactElement {
   return (
     <Box width={width} marginBottom={1}>
-      <Box width={width} backgroundColor={NO_COLOR ? undefined : "gray"} paddingX={1}>
-        <Text wrap="wrap">
+      {/* ink 5 has no Box-level background; the band tint lives on the Text nodes. */}
+      <Box width={width} paddingX={1}>
+        <Text backgroundColor={NO_COLOR ? undefined : "gray"} wrap="wrap">
           <Text bold={!NO_COLOR}>{"> "}</Text>
           <Text>{text}</Text>
         </Text>
@@ -240,8 +241,7 @@ export function ToolActivityPanel({
         ? `Ran ${runs.length + omittedCount} ${noun} · ${elapsed}s`
         : `Ran ${runs.length} ${noun} · ${elapsed}s`;
 
-  const treeCap =
-    maxTreeRows === Number.POSITIVE_INFINITY ? runs.length : Math.max(0, maxTreeRows);
+  const treeCap = maxTreeRows === Number.POSITIVE_INFINITY ? runs.length : Math.max(0, maxTreeRows);
   const treeRuns = treeCap >= runs.length ? runs : runs.slice(-treeCap);
 
   return (
@@ -254,13 +254,18 @@ export function ToolActivityPanel({
         ) : (
           <Text dimColor>● </Text>
         )}
-        <Text color={phase === "running" && !NO_COLOR ? "yellow" : undefined} dimColor={phase === "done"}>
+        <Text
+          color={phase === "running" && !NO_COLOR ? "yellow" : undefined}
+          dimColor={phase === "done"}
+        >
           {summary}
         </Text>
       </Box>
       {omittedCount > 0 ? (
         <Box paddingX={1} marginLeft={2}>
-          <Text dimColor>… {omittedCount} earlier {omittedCount === 1 ? "tool" : "tools"}</Text>
+          <Text dimColor>
+            … {omittedCount} earlier {omittedCount === 1 ? "tool" : "tools"}
+          </Text>
         </Box>
       ) : null}
       {treeRuns.map((run, idx) => {
@@ -279,8 +284,7 @@ export function ToolActivityPanel({
                 </>
               ) : (
                 <>
-                  ${" "}
-                  <Text color={NO_COLOR ? undefined : "cyan"}>{label}</Text>
+                  $ <Text color={NO_COLOR ? undefined : "cyan"}>{label}</Text>
                 </>
               )}
             </Text>
@@ -331,8 +335,7 @@ export function StreamWaitLine({
     return () => clearInterval(id);
   }, [frames.length]);
 
-  const tokenSuffix =
-    tokenCount !== undefined && tokenCount > 0 ? ` · ↓ ${tokenCount} tokens` : "";
+  const tokenSuffix = tokenCount !== undefined && tokenCount > 0 ? ` · ↓ ${tokenCount} tokens` : "";
 
   return (
     <Box>

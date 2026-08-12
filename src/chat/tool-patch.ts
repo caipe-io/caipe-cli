@@ -26,7 +26,15 @@ function readPath(obj: Record<string, unknown>): string | undefined {
 
 function readOldNew(obj: Record<string, unknown>): { oldText: string; newText: string } | null {
   const oldKeys = ["old_string", "oldString", "old_text", "oldText", "original", "before"];
-  const newKeys = ["new_string", "newString", "new_text", "newText", "replacement", "after", "content"];
+  const newKeys = [
+    "new_string",
+    "newString",
+    "new_text",
+    "newText",
+    "replacement",
+    "after",
+    "content",
+  ];
   let oldText: string | undefined;
   let newText: string | undefined;
   for (const k of oldKeys) {

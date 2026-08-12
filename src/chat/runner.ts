@@ -9,6 +9,7 @@ import { render } from "ink";
 import React from "react";
 
 import { resolveSessionAgent } from "../agents/registry.js";
+import type { Agent } from "../agents/types.js";
 import { getValidToken } from "../auth/tokens.js";
 import {
   ServerNotConfigured,
@@ -107,13 +108,9 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
 
   const getToken = () => getValidToken(authUrl);
 
-  let resolvedAgent;
+  let resolvedAgent: Agent;
   try {
-    resolvedAgent = await resolveSessionAgent(
-      serverUrl,
-      getToken,
-      opts.agent ?? globalOpts.agent,
-    );
+    resolvedAgent = await resolveSessionAgent(serverUrl, getToken, opts.agent ?? globalOpts.agent);
   } catch (err) {
     process.stderr.write(`[ERROR] ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(3);
@@ -133,9 +130,7 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
     const { loadSession } = await import("./history.js");
     const existing = loadSession(opts.resume);
     if (!existing) {
-      process.stderr.write(
-        `[WARN] Session ${opts.resume} not found; starting a new session.\n`,
-      );
+      process.stderr.write(`[WARN] Session ${opts.resume} not found; starting a new session.\n`);
       session = createSession({ agentName, workingDir: cwd });
       session.memoryContext = systemContext;
     } else {
@@ -150,9 +145,7 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
   const ep = authEndpoints(serverUrl);
   const adapter = createAdapter(resolvedAgent, ep.streamStart, getToken, {
     conversationIds:
-      session.conversationId != null
-        ? { [session.sessionId]: session.conversationId }
-        : undefined,
+      session.conversationId != null ? { [session.sessionId]: session.conversationId } : undefined,
   });
 
   // Mount REPL

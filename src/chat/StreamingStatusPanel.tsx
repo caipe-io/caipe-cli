@@ -3,13 +3,10 @@
  */
 
 import { Box } from "ink";
-import React, { memo, useEffect, useState } from "react";
+import type React from "react";
+import { memo, useEffect, useState } from "react";
 
-import {
-  StreamWaitLine,
-  ToolActivityPanel,
-  type ToolActivityRun,
-} from "../platform/display.js";
+import { StreamWaitLine, ToolActivityPanel, type ToolActivityRun } from "../platform/display.js";
 import { maxLiveToolTreeRows, waitStatusTickMs } from "../platform/terminal/repl-ui.js";
 
 export type LiveToolRefEntry = {

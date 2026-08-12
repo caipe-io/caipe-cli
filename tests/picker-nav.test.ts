@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  movePickerIndex,
-  pagePickerIndex,
-  pickerWindow,
-} from "../src/chat/picker-nav.js";
+import { movePickerIndex, pagePickerIndex, pickerWindow } from "../src/chat/picker-nav.js";
 
 describe("picker-nav", () => {
   it("wraps movePickerIndex", () => {

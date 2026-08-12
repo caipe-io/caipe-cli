@@ -3,14 +3,10 @@
  * inline tokens live under a nested `text` token. Override `list` only.
  */
 
-import type { MarkedExtension, Parser } from "marked";
+import type { MarkedExtension, Parser, Token, Tokens } from "marked";
 
-type InlineCapable = { type: string; tokens?: InlineCapable[] };
-type ListItemToken = { loose?: boolean; tokens?: InlineCapable[] };
-type ListToken = { ordered?: boolean; start?: number | string; items: ListItemToken[] };
-
-function listItemInlineText(parser: Parser, item: ListItemToken): string {
-  const parts = item.tokens ?? [];
+function listItemInlineText(parser: Parser, item: Tokens.ListItem): string {
+  const parts: Token[] = item.tokens ?? [];
   if (parts.length === 0) return "";
 
   if (item.loose) {
@@ -32,14 +28,12 @@ function listItemInlineText(parser: Parser, item: ListItemToken): string {
 
 export function markedListInlineExtension(): MarkedExtension {
   return {
-    name: "caipe-list-inline",
     renderer: {
-      list(token) {
-        const listToken = token as ListToken;
-        let index = listToken.start ? Number(listToken.start) : 1;
-        const lines = listToken.items.map((item) => {
+      list(token: Tokens.List) {
+        let index = token.start ? Number(token.start) : 1;
+        const lines = token.items.map((item) => {
           const content = listItemInlineText(this.parser, item);
-          const prefix = listToken.ordered ? `${index++}. ` : "• ";
+          const prefix = token.ordered ? `${index++}. ` : "• ";
           return prefix + content;
         });
         return `${lines.join("\n")}\n\n`;
