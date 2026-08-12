@@ -8,10 +8,7 @@
   },
   "files": [
     "bin",
-    "dist",
     "src",
-    "npm",
-    "entitlements.plist",
     "README.md",
     "LICENSE"
   ],
@@ -64,7 +61,7 @@
     "keytar": "7.9.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.17"
   },
   "keywords": [
     "caipe",

@@ -16,6 +16,7 @@ set -e
 REPO="cnoe-io/caipe-cli"
 INSTALL_DIR="${CAIPE_INSTALL_DIR:-/usr/local/bin}"
 VERSION="${CAIPE_VERSION:-}"
+TAG=""
 NO_VERIFY="${CAIPE_NO_VERIFY:-0}"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ detect_platform() {
 
 resolve_version() {
   if [ -n "$VERSION" ]; then
+    TAG="$VERSION"
     info "Using pinned version: $VERSION"
     return
   fi
@@ -62,19 +64,18 @@ resolve_version() {
   info "Resolving latest release…"
   need_cmd curl
 
-  # GitHub API: get latest tag matching caipe/v*
-  LATEST=$(curl -fsSL \
-    "https://api.github.com/repos/${REPO}/releases" \
+  TAG=$(curl -fsSL \
+    "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name"' \
-    | grep '"caipe/v' \
     | head -1 \
-    | sed 's/.*"caipe\/\(v[^"]*\)".*/\1/')
+    | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
-  if [ -z "$LATEST" ]; then
+  if [ -z "$TAG" ]; then
     die "Could not determine latest caipe release. Set CAIPE_VERSION to install a specific version."
   fi
 
-  VERSION="$LATEST"
+  VERSION="${TAG#caipe/}"
+  VERSION="${VERSION#v}"
   info "Latest version: $VERSION"
 }
 
@@ -82,7 +83,6 @@ resolve_version() {
 
 download_binary() {
   BINARY_NAME="caipe-${PLATFORM}"
-  TAG="caipe/${VERSION}"
   BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
   BINARY_URL="${BASE_URL}/${BINARY_NAME}"
   CHECKSUMS_URL="${BASE_URL}/caipe-checksums.txt"
@@ -190,6 +190,7 @@ verify_install() {
   if ! command -v caipe >/dev/null 2>&1; then
     printf '\n\033[33m  ! caipe is not in your PATH.\033[0m\n'
     printf '    Add %s to your PATH:\n' "$INSTALL_DIR"
+    # shellcheck disable=SC2016 # print a literal $PATH for the user's shell
     printf '    export PATH="%s:$PATH"\n\n' "$INSTALL_DIR"
     return
   fi

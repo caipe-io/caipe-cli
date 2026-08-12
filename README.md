@@ -4,12 +4,15 @@ Terminal client for [CAIPE](https://github.com/cnoe-io/ai-platform-engineering):
 
 ## TL;DR
 
-**Install once** (pick one):
+**Install the published multi-architecture package:**
 
 ```bash
-git clone https://github.com/cnoe-io/caipe-cli.git && cd caipe-cli && bun install && npm run compile
-# binary: ./dist/caipe  — add to PATH or symlink ~/.local/bin/caipe
+npm install -g caipe@latest
+caipe --version
 ```
+
+The npm package automatically installs the matching binary for macOS or Linux
+on arm64 or x64. No Bun checkout or local compilation is required.
 
 **Point at your Grid deployment, sign in, chat:**
 
@@ -29,8 +32,8 @@ Other host (UI serves OAuth on the same URL): set only `server.url`, then `caipe
 
 ---
 
-- **Node.js 20+** (for `npx`, tests, and the Node bundle)
-- **Bun 1.1+** (recommended for `npm run compile` and local dev)
+- **Node.js 20.17+** (Node 22 LTS recommended) for npm/npx installation
+- **Bun 1.1+** only for building from source
 - A reachable CAIPE deployment (API + OAuth)
 
 Optional: **keytar** only if you set `auth.credential-storage` to `keychain`.
@@ -39,48 +42,60 @@ Optional: **keytar** only if you set `auth.credential-storage` to `keychain`.
 
 ## Install
 
-### Option A — Run from GitHub (no build)
+### Option A — npm package (recommended)
 
 ```bash
-npx github:cnoe-io/caipe-cli -- --version
+npm install -g caipe@latest
+caipe --version
 ```
 
-Use `--` before CLI arguments:
+For a one-off command without a global install:
 
 ```bash
-npx github:cnoe-io/caipe-cli -- auth login
-npx github:cnoe-io/caipe-cli -- chat
+npx --yes caipe@latest --version
 ```
 
-### Option B — One-line setup script
+Use the registry package, not `npx github:cnoe-io/caipe-cli`. GitHub source
+installs do not receive the release pipeline's generated platform packages and
+can fail with `Could not start caipe` even after changing Node versions.
 
-Installs Bun if needed, builds a native binary, and puts `caipe` on your `PATH` (default: `~/.local/bin`):
+### Option B — One-line binary installer
 
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup-caipe-cli.sh)
-```
-
-Preconfigure the server:
-
-```bash
-CAIPE_SERVER_URL=https://grid.example.com \
-  bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup-caipe-cli.sh)
-```
-
-### Option C — Released binary (when available)
+Downloads the latest binary for the current architecture, verifies its SHA-256
+checksum, and installs the `caipe` launcher:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
 ```
 
-Requires a GitHub release tagged **`caipe/v*.*.*`**. Set `CAIPE_VERSION` or `CAIPE_INSTALL_DIR` if needed.
-
-### Option D — npm (after publish)
+Pin a release or choose a writable install directory when needed:
 
 ```bash
-npm install -g caipe
-caipe --version
+CAIPE_VERSION=0.2.22 CAIPE_INSTALL_DIR="$HOME/.local/bin" \
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh)"
 ```
+
+### Option C — Build from source
+
+```bash
+git clone https://github.com/cnoe-io/caipe-cli.git
+cd caipe-cli
+bun install --frozen-lockfile
+npm run compile
+./dist/caipe --version
+```
+
+The legacy `setup-caipe-cli.sh` remains available for a one-line source build,
+but published packages are faster and reproducible.
+
+### Supported release binaries
+
+| Operating system | Architecture | npm platform package | Release asset |
+|------------------|--------------|----------------------|---------------|
+| macOS | Apple Silicon (arm64) | `caipe-darwin-arm64` | `caipe-darwin-arm64` |
+| macOS | Intel (x64) | `caipe-darwin-x64` | `caipe-darwin-x64` |
+| Linux | arm64 | `caipe-linux-arm64` | `caipe-linux-arm64` |
+| Linux | x64 | `caipe-linux-x64` | `caipe-linux-x64` |
 
 ---
 
@@ -94,11 +109,8 @@ npm run compile          # native binary → dist/caipe
 ./dist/caipe --version
 ```
 
-Add `./dist` or `~/.local/bin` to your `PATH`, or symlink:
-
-```bash
-ln -sf "$(pwd)/dist/caipe" ~/.local/bin/caipe
-```
+For a development checkout, run `npm link` or use `node bin/caipe.cjs` rather
+than copying the compiled binary into `PATH`.
 
 ### Other build targets
 
@@ -117,7 +129,8 @@ npm rebuild keytar
 caipe config set auth.credential-storage keychain
 ```
 
-Warnings about missing `caipe-darwin-arm64` on npm are normal until platform packages are published.
+The release pipeline publishes all four platform packages before publishing
+the top-level `caipe` package, so npm can select the correct optional dependency.
 
 ### Verify the build
 
@@ -125,6 +138,23 @@ Warnings about missing `caipe-darwin-arm64` on npm are normal until platform pac
 npm run lint
 npm test
 ```
+
+## Publish a release
+
+The `Publish caipe CLI` GitHub Actions workflow runs for semantic-version tags.
+It verifies the source, builds and smoke-tests all four supported binaries,
+publishes a GitHub release with checksums and keyless cosign signatures, then
+publishes the four platform packages and the top-level `caipe` npm package.
+
+```bash
+git tag 0.2.22
+git push origin 0.2.22
+```
+
+The GitHub `npm-publish` environment must provide an `NPM_TOKEN` secret with
+permission to publish `caipe` and the four `caipe-<os>-<arch>` packages.
+Prerelease tags such as `0.2.22-rc.1` publish to npm's `next` dist-tag; stable
+versions publish to `latest`.
 
 ---
 

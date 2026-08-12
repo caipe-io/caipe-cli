@@ -33,6 +33,8 @@ function die(msg) {
 function launchChain() {
   /** @type {LaunchSpec[]} */
   const chain = [];
+  /** @type {LaunchSpec | null} */
+  let packagedBinary = null;
 
   const os = process.platform;
   const cpu = process.arch;
@@ -45,7 +47,8 @@ function launchChain() {
       continue;
     }
     if (fs.existsSync(binPath)) {
-      chain.push({ kind: "exec", bin: binPath, binArgs: args });
+      packagedBinary = { kind: "exec", bin: binPath, binArgs: args };
+      chain.push(packagedBinary);
       break;
     }
   }
@@ -57,7 +60,7 @@ function launchChain() {
 
   let tsxCli;
   try {
-    tsxCli = require.resolve("tsx/dist/cli.mjs");
+    tsxCli = require.resolve("tsx/cli");
   } catch {
     tsxCli = null;
   }
@@ -75,6 +78,12 @@ function launchChain() {
     const compiled = chain.find((s) => s.kind === "exec");
     const rest = chain.filter((s) => s !== compiled);
     return compiled ? [compiled, ...rest] : chain;
+  }
+
+  // Registry installs should use the matching multi-arch package first. If
+  // that binary cannot run, runChain will fall back to the Node-based paths.
+  if (packagedBinary) {
+    return [packagedBinary, ...chain.filter((spec) => spec !== packagedBinary)];
   }
 
   // Default: tsx/node first, then compiled binary (Bun compile can be SIGKILL'd in some PATH layouts).
@@ -111,7 +120,7 @@ function runChain(chain) {
     process.exit(r.status ?? (r.signal ? 128 : 1));
   }
   die(
-    "Could not start caipe. Run from the repo: npm run build && npm link, or install via install.sh. Avoid copying dist/caipe into PATH — use bin/caipe.cjs.",
+    "Could not start caipe. Install the published package with `npm install -g caipe`, use install.sh, or run `npm run dev -- --version` from a checkout.",
   );
 }
 
