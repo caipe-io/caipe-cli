@@ -15,7 +15,8 @@ set -e
 
 REPO="cnoe-io/caipe-cli"
 INSTALL_DIR="${CAIPE_INSTALL_DIR:-/usr/local/bin}"
-VERSION="${CAIPE_VERSION:-}"
+DEFAULT_VERSION="latest"
+VERSION="${CAIPE_VERSION:-$DEFAULT_VERSION}"
 TAG=""
 NO_VERIFY="${CAIPE_NO_VERIFY:-0}"
 
@@ -55,35 +56,25 @@ detect_platform() {
 # ── resolve latest version ────────────────────────────────────────────────────
 
 resolve_version() {
-  if [ -n "$VERSION" ]; then
+  if [ "$VERSION" != "$DEFAULT_VERSION" ]; then
     TAG="$VERSION"
     info "Using pinned version: $VERSION"
     return
   fi
 
-  info "Resolving latest release…"
-  need_cmd curl
-
-  TAG=$(curl -fsSL \
-    "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' \
-    | head -1 \
-    | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-
-  if [ -z "$TAG" ]; then
-    die "Could not determine latest caipe release. Set CAIPE_VERSION to install a specific version."
-  fi
-
-  VERSION="${TAG#caipe/}"
-  VERSION="${VERSION#v}"
-  info "Latest version: $VERSION"
+  info "Using latest release"
 }
 
 # ── download and verify ───────────────────────────────────────────────────────
 
 download_binary() {
   BINARY_NAME="caipe-${PLATFORM}"
-  BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+  if [ -n "$TAG" ]; then
+    BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+  else
+    # This redirect is not subject to the unauthenticated GitHub API rate limit.
+    BASE_URL="https://github.com/${REPO}/releases/latest/download"
+  fi
   BINARY_URL="${BASE_URL}/${BINARY_NAME}"
   CHECKSUMS_URL="${BASE_URL}/caipe-checksums.txt"
 
