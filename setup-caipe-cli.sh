@@ -14,7 +14,7 @@
 #   CAIPE_INSTALL_DIR    Install binary here (default: ~/.local/bin)
 #   CAIPE_SERVER_URL     If set, runs: caipe config set server.url <url>
 #   CAIPE_SKIP_PULL      Set to 1 to skip git fetch on existing clone
-#   BUN_INSTALL          Passed to Bun installer (default: $HOME/.bun)
+#   BUN_INSTALL          Bun installation directory (default: $HOME/.bun)
 
 set -euo pipefail
 
@@ -24,10 +24,10 @@ SRC_DIR="${CAIPE_CLI_DIR:-${HOME}/.cache/caipe-cli-build/src}"
 INSTALL_DIR="${CAIPE_INSTALL_DIR:-${HOME}/.local/bin}"
 BUN_INSTALL="${BUN_INSTALL:-${HOME}/.bun}"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+CYAN=$'\033[0;36m'
+NC=$'\033[0m'
 
 info() { printf "${CYAN}  >${NC} %s\n" "$*"; }
 ok() { printf "${GREEN}  ✓${NC} %s\n" "$*"; }
@@ -46,11 +46,48 @@ ensure_bun() {
     return 0
   fi
   need_cmd curl
-  info "Installing Bun…"
-  curl -fsSL https://bun.sh/install | bash
+  need_cmd unzip
+
+  local os arch asset release_url temp_dir archive checksums expected actual extracted
+  os="$(uname -s)"
+  arch="$(uname -m)"
+  case "${os}:${arch}" in
+    Darwin:arm64|Darwin:aarch64) asset="bun-darwin-aarch64.zip" ;;
+    Darwin:x86_64)              asset="bun-darwin-x64.zip" ;;
+    Linux:arm64|Linux:aarch64)  asset="bun-linux-aarch64.zip" ;;
+    Linux:x86_64|Linux:amd64)   asset="bun-linux-x64.zip" ;;
+    *) die "Unsupported platform for Bun: ${os} ${arch}" ;;
+  esac
+
+  info "Installing Bun from GitHub Releases…"
+  release_url="https://github.com/oven-sh/bun/releases/latest/download"
+  temp_dir="$(mktemp -d)"
+  archive="${temp_dir}/${asset}"
+  checksums="${temp_dir}/SHASUMS256.txt"
+
+  curl -fsSL --retry 3 -o "${archive}" "${release_url}/${asset}"
+  curl -fsSL --retry 3 -o "${checksums}" "${release_url}/SHASUMS256.txt"
+
+  expected="$(awk -v name="${asset}" '$2 == name { print $1; exit }' "${checksums}")"
+  [[ -n "${expected}" ]] || die "No checksum published for ${asset}"
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "${archive}" | awk '{ print $1 }')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "${archive}" | awk '{ print $1 }')"
+  else
+    die "sha256sum or shasum is required to verify Bun"
+  fi
+  [[ "${actual}" == "${expected}" ]] || die "Bun checksum verification failed"
+
+  unzip -q "${archive}" -d "${temp_dir}"
+  extracted="${temp_dir}/${asset%.zip}/bun"
+  [[ -x "${extracted}" ]] || die "Bun archive did not contain the expected executable"
+  mkdir -p "${BUN_INSTALL}/bin"
+  install -m 755 "${extracted}" "${BUN_INSTALL}/bin/bun"
+  rm -rf -- "${temp_dir}"
   export PATH="${BUN_INSTALL}/bin:${PATH}"
   command -v bun >/dev/null 2>&1 || die "Bun install failed"
-  ok "Bun installed"
+  ok "Bun $(bun --version) installed (checksum verified)"
 }
 
 detect_bun_target() {
@@ -88,12 +125,15 @@ compile_cli() {
   local target outfile
   target="$(detect_bun_target)"
   outfile="dist/caipe"
-  info "Installing npm dependencies…"
+  info "Installing dependencies…"
   (cd "${SRC_DIR}" && bun install --frozen-lockfile)
-  info "Building native keytar (optional OS keychain)…"
-  (cd "${SRC_DIR}" && npm rebuild keytar 2>/dev/null) || true
   info "Compiling caipe (${target})…"
-  (cd "${SRC_DIR}" && bun build src/index.ts --compile --target="${target}" --outfile="${outfile}")
+  (cd "${SRC_DIR}" && bun build src/index.ts \
+    --compile \
+    --target="${target}" \
+    --outfile="${outfile}" \
+    --external keytar \
+    --external fsevents)
   if [[ "$(uname -s)" == "Darwin" ]]; then
     (cd "${SRC_DIR}" && codesign --remove-signature "${outfile}" 2>/dev/null || true)
     (cd "${SRC_DIR}" && codesign --sign - --force --entitlements entitlements.plist "${outfile}")
