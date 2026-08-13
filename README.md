@@ -10,9 +10,9 @@ Terminal client for [CAIPE](https://github.com/cnoe-io/ai-platform-engineering):
 curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
 ```
 
-The installer downloads the latest verified release to your home directory and
-adds the `caipe` launcher to `~/.local/bin`. It does not need `sudo` unless you
-explicitly select a system directory.
+The installer downloads the latest verified release and asks where to place the
+`caipe` launcher. Press Enter for `~/.local/bin` (recommended, no password),
+choose `~/.bin`, or explicitly select `/usr/local/bin` for a system-wide install.
 
 **Point at your CAIPE deployment, sign in, chat:**
 
@@ -46,10 +46,19 @@ Optional: **keytar** only if you set `auth.credential-storage` to `keychain`.
 curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
 ```
 
-Then verify the installation with `caipe --version`. If `~/.local/bin` is not
-already on your `PATH`, the installer prints the exact command to add it.
+The installer asks you to choose:
 
-Choose another user-owned directory without a password:
+1. `~/.local/bin` — recommended, no password
+2. `~/.bin` — user-owned alternative, no password
+3. `/usr/local/bin` — system-wide and may require `sudo`
+
+Press Enter to accept option 1. In a non-interactive environment, option 1 is
+selected automatically. Then verify with `caipe --version`. If the selected
+directory is not already on `PATH`, the installer prints the exact command to
+add it.
+
+Automation can bypass the prompt with `CAIPE_INSTALL_DIR`. For example, choose
+the user-owned `~/.bin` directory without a password:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh \

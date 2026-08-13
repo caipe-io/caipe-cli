@@ -14,7 +14,8 @@
 set -e
 
 REPO="cnoe-io/caipe-cli"
-INSTALL_DIR="${CAIPE_INSTALL_DIR:-${HOME}/.local/bin}"
+DEFAULT_INSTALL_DIR="${HOME}/.local/bin"
+INSTALL_DIR="${CAIPE_INSTALL_DIR:-}"
 DEFAULT_VERSION="latest"
 VERSION="${CAIPE_VERSION:-$DEFAULT_VERSION}"
 TAG=""
@@ -30,6 +31,39 @@ need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     die "Required command not found: $1"
   fi
+}
+
+can_prompt() {
+  [ -c /dev/tty ] || return 1
+  { : </dev/tty; } 2>/dev/null
+}
+
+choose_install_dir() {
+  # An explicit environment value is authoritative and keeps automation quiet.
+  if [ -n "$INSTALL_DIR" ]; then
+    return
+  fi
+
+  INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+  if ! can_prompt; then
+    info "No interactive terminal; using ${INSTALL_DIR}"
+    return
+  fi
+
+  printf '\nWhere should caipe be installed?\n' >/dev/tty
+  printf '  1) %s  (recommended, no password)\n' "$DEFAULT_INSTALL_DIR" >/dev/tty
+  printf '  2) %s  (no password)\n' "${HOME}/.bin" >/dev/tty
+  printf '  3) /usr/local/bin  (system-wide; may ask for a password)\n' >/dev/tty
+  printf 'Select [1]: ' >/dev/tty
+
+  choice=""
+  IFS= read -r choice </dev/tty || true
+  case "$choice" in
+    ""|1) INSTALL_DIR="$DEFAULT_INSTALL_DIR" ;;
+    2) INSTALL_DIR="${HOME}/.bin" ;;
+    3) INSTALL_DIR="/usr/local/bin" ;;
+    *) die "Invalid selection: ${choice}. Choose 1, 2, or 3." ;;
+  esac
 }
 
 # ── detect platform ───────────────────────────────────────────────────────────
@@ -219,6 +253,7 @@ main() {
 
   detect_platform
   resolve_version
+  choose_install_dir
   info "Install directory: ${INSTALL_DIR}"
   download_binary
   install_binary
