@@ -75,6 +75,10 @@ caipe config set updates.mode notify  # auto (default), notify, or off
 Source or unknown launchers fall back to a notification and an actionable
 manual update command. Set `CAIPE_NO_UPDATE_CHECK=1` for a one-off invocation.
 
+Every commit to `main` is released after the full CI workflow succeeds. The
+release workflow creates the next patch tag, publishes checksummed binaries,
+signs them with cosign, and publishes the matching npm packages.
+
 ---
 
 ## Developer guide
