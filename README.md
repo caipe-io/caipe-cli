@@ -13,11 +13,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup
 The setup script installs Bun when needed, builds CAIPE CLI from the latest
 `main`, and adds `caipe` to `~/.local/bin`.
 
-**Point at your Grid deployment, sign in, chat:**
+**Point at your CAIPE deployment, sign in, chat:**
 
 ```bash
-caipe config set server.url https://grid.example.com
-caipe config set auth.url https://idp.grid.example.com/realms/caipe
+caipe config set server.url https://caipe.example.com
+caipe config set auth.url https://idp.caipe.example.com/realms/caipe
 caipe auth login
 caipe agents list
 caipe chat --agent '<id-from-agents-list>'
@@ -142,11 +142,12 @@ caipe chat
 
 ### Split API vs IdP
 
-On some deployments the BFF may not expose `/oauth/authorize` yet. Point **API** at Grid and **OAuth** at Keycloak:
+On some deployments the BFF may not expose `/oauth/authorize` yet. Point the
+**API** at CAIPE and **OAuth** at Keycloak:
 
 ```bash
-caipe config set server.url https://grid.example.com
-caipe config set auth.url https://idp.grid.example.com/realms/caipe
+caipe config set server.url https://caipe.example.com
+caipe config set auth.url https://idp.caipe.example.com/realms/caipe
 rm -f ~/.config/caipe/agent-config.json
 caipe auth logout    # if you have stale tokens
 caipe auth login
@@ -183,7 +184,7 @@ caipe config set auth.idp-hint duo-sso
 | Symptom | What to do |
 |---------|------------|
 | `Already authenticated as (unknown)` | `caipe auth logout` then `caipe auth login`, or upgrade to a build with session fixes |
-| Browser **404** on `/oauth/authorize` | Set `auth.url` to the realm issuer (see Grid preview above) |
+| Browser **404** on `/oauth/authorize` | Set `auth.url` to the realm issuer (see the split API/IdP section above) |
 | `Invalid client_type: cli` | CLI retries with `slack` on older BFFs; upgrade UI to add `cli` to `VALID_CLIENT_TYPES` |
 | **403** `agent#use` / `pdp_denied` | Run `caipe agents list`, then `caipe chat --agent <id>` for an agent you can use; ask admin for OpenFGA **agent#use** if the list is empty |
 
@@ -282,7 +283,7 @@ Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENA
 |---------|-------------|
 | `caipe` / `caipe chat` | Interactive REPL |
 | `caipe auth login\|logout\|status` | OAuth session |
-| `caipe config set\|get\|unset\|discover` | Settings (`discover` sets `auth.url` via well-known URLs or Grid-style heuristics) |
+| `caipe config set\|get\|unset\|discover` | Settings (`discover` sets `auth.url` via well-known URLs or deployment hostname heuristics) |
 | `caipe agents list\|info` | Server agents |
 | `caipe kb …` | KB query, read chunks, ingest, jobs, RBAC (`user info`) — JSON only |
 | `caipe skills list\|install\|preview\|update` | Skill catalog |
@@ -315,7 +316,11 @@ Older BFFs only allow `webui`, `slack`, and `webex`. The CLI tries **`slack` fir
 
 ### OAuth 404 on `/oauth/authorize`
 
-Set **`server.url`** to the UI/BFF, then run **`caipe config discover`**. Discovery tries, in order: `/.well-known/agent.json`, OIDC metadata on the BFF host, then heuristics (e.g. `grid.*` → `idp.grid.*/realms/caipe`). Override the realm with **`CAIPE_AUTH_REALM`**. You can still set **`auth.url`** manually (e.g. `https://idp.example.com/realms/caipe`).
+Set **`server.url`** to the UI/BFF, then run **`caipe config discover`**.
+Discovery tries, in order: `/.well-known/agent.json`, OIDC metadata on the BFF
+host, then deployment-specific hostname heuristics. Override the realm with
+**`CAIPE_AUTH_REALM`**. You can still set **`auth.url`** manually (for example,
+`https://idp.caipe.example.com/realms/caipe`).
 
 ---
 
