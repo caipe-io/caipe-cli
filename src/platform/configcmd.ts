@@ -22,7 +22,8 @@ type SupportedKey =
   | "auth.credential-storage"
   | "auth.idp-hint"
   | "agent.default"
-  | "kb.url";
+  | "kb.url"
+  | "updates.mode";
 
 const SUPPORTED_KEYS: SupportedKey[] = [
   "auth.url",
@@ -32,9 +33,11 @@ const SUPPORTED_KEYS: SupportedKey[] = [
   "auth.idp-hint",
   "agent.default",
   "kb.url",
+  "updates.mode",
 ];
 
 const CREDENTIAL_STORAGE_VALUES = ["encrypted-file", "keychain"] as const;
+const UPDATE_MODE_VALUES = ["auto", "notify", "off"] as const;
 
 function assertSupportedKey(key: string): asserts key is SupportedKey {
   if (!SUPPORTED_KEYS.includes(key as SupportedKey)) {
@@ -146,6 +149,21 @@ export async function runConfigSet(key: string, value: string): Promise<void> {
     process.stdout.write(`Set kb.url = ${url}\n`);
     return;
   }
+
+  if (key === "updates.mode") {
+    const mode = value.trim().toLowerCase() as (typeof UPDATE_MODE_VALUES)[number];
+    if (!UPDATE_MODE_VALUES.includes(mode)) {
+      process.stderr.write(
+        `[ERROR] updates.mode must be one of: ${UPDATE_MODE_VALUES.join(", ")}\n`,
+      );
+      process.exit(3);
+    }
+    const settings = readSettings();
+    settings.updates = { ...settings.updates, mode };
+    writeSettings(settings);
+    process.stdout.write(`Set updates.mode = ${mode}\n`);
+    return;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +222,15 @@ export async function runConfigGet(key: string, opts: { json?: boolean }): Promi
     } else {
       value = settings.kb?.url;
     }
+  } else if (key === "updates.mode") {
+    const envVal = process.env.CAIPE_UPDATE_MODE;
+    if (envVal) {
+      value = envVal;
+      source = "CAIPE_UPDATE_MODE env var";
+    } else {
+      value = settings.updates?.mode ?? "auto";
+      source = settings.updates?.mode ? "settings.json" : "default";
+    }
   }
 
   if (opts.json) {
@@ -251,6 +278,8 @@ export async function runConfigUnset(key: string): Promise<void> {
     settings.agent.default = undefined;
   } else if (key === "kb.url" && settings.kb) {
     settings.kb.url = undefined;
+  } else if (key === "updates.mode" && settings.updates) {
+    settings.updates.mode = undefined;
   }
 
   writeSettings(settings);

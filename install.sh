@@ -164,7 +164,12 @@ if (!fs.existsSync(bin)) {
   process.stderr.write("[caipe] Missing " + bin + ". Re-run install.sh.\n");
   process.exit(1);
 }
-const r = spawnSync(bin, args, { stdio: "inherit" });
+const env = {
+  ...process.env,
+  CAIPE_INSTALL_METHOD: "binary",
+  CAIPE_BINARY_PATH: bin,
+};
+const r = spawnSync(bin, args, { stdio: "inherit", env });
 process.exit(r.status ?? (r.signal ? 128 : 1));
 LAUNCHER_EOF
   chmod +x "${LAUNCHER}"

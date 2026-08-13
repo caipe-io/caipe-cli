@@ -45,6 +45,7 @@ describe("bin/caipe.cjs", () => {
     });
     expect(exitCode).toBe(0);
     expect(stdout).toMatch(/chat|config|auth/i);
+    expect(stdout).toContain("update");
   });
 });
 
