@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
 #
 # Options (environment variables):
-#   CAIPE_INSTALL_DIR   — override install directory (default: /usr/local/bin)
+#   CAIPE_INSTALL_DIR   — launcher directory (default: $HOME/.local/bin)
 #   CAIPE_VERSION       — pin a specific version (default: latest)
 #   CAIPE_NO_VERIFY     — set to 1 to skip checksum verification (not recommended)
 #
@@ -14,11 +14,13 @@
 set -e
 
 REPO="cnoe-io/caipe-cli"
-INSTALL_DIR="${CAIPE_INSTALL_DIR:-/usr/local/bin}"
+DEFAULT_INSTALL_DIR="${HOME}/.local/bin"
+INSTALL_DIR="${CAIPE_INSTALL_DIR:-}"
 DEFAULT_VERSION="latest"
 VERSION="${CAIPE_VERSION:-$DEFAULT_VERSION}"
 TAG=""
 NO_VERIFY="${CAIPE_NO_VERIFY:-0}"
+INSTALL_PENDING="0"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -30,6 +32,39 @@ need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     die "Required command not found: $1"
   fi
+}
+
+can_prompt() {
+  [ -c /dev/tty ] || return 1
+  { : </dev/tty; } 2>/dev/null
+}
+
+choose_install_dir() {
+  # An explicit environment value is authoritative and keeps automation quiet.
+  if [ -n "$INSTALL_DIR" ]; then
+    return
+  fi
+
+  INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+  if ! can_prompt; then
+    info "No interactive terminal; using ${INSTALL_DIR}"
+    return
+  fi
+
+  printf '\nWhere should caipe be installed?\n' >/dev/tty
+  printf '  1) %s  (recommended, no password)\n' "$DEFAULT_INSTALL_DIR" >/dev/tty
+  printf '  2) %s  (no password)\n' "${HOME}/.bin" >/dev/tty
+  printf '  3) /usr/local/bin  (system-wide; completed with a separate command)\n' >/dev/tty
+  printf 'Select [1]: ' >/dev/tty
+
+  choice=""
+  IFS= read -r choice </dev/tty || true
+  case "$choice" in
+    ""|1) INSTALL_DIR="$DEFAULT_INSTALL_DIR" ;;
+    2) INSTALL_DIR="${HOME}/.bin" ;;
+    3) INSTALL_DIR="/usr/local/bin" ;;
+    *) die "Invalid selection: ${choice}. Choose 1, 2, or 3." ;;
+  esac
 }
 
 # ── detect platform ───────────────────────────────────────────────────────────
@@ -165,14 +200,16 @@ process.exit(r.status ?? (r.signal ? 128 : 1));
 LAUNCHER_EOF
   chmod +x "${LAUNCHER}"
 
-  if [ ! -w "$INSTALL_DIR" ]; then
-    info "Installing to ${INSTALL_DIR} requires elevated privileges…"
-    if command -v sudo >/dev/null 2>&1; then
-      sudo install -m 755 "${LAUNCHER}" "${DEST}"
-    else
-      die "Cannot write to ${INSTALL_DIR} and sudo is unavailable. " \
-          "Set CAIPE_INSTALL_DIR to a writable directory (e.g. ~/.local/bin)."
+  if [ ! -d "$INSTALL_DIR" ]; then
+    if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+      stage_privileged_launcher
+      return
     fi
+  fi
+
+  if [ ! -w "$INSTALL_DIR" ]; then
+    stage_privileged_launcher
+    return
   else
     install -m 755 "${LAUNCHER}" "${DEST}"
   fi
@@ -180,9 +217,26 @@ LAUNCHER_EOF
   ok "Installed caipe launcher to ${DEST}"
 }
 
+stage_privileged_launcher() {
+  STAGED_LAUNCHER="${SHARE}/caipe-launcher"
+  install -m 755 "${LAUNCHER}" "${STAGED_LAUNCHER}"
+  INSTALL_PENDING="1"
+
+  printf '\n\033[33m  ! The web installer never runs sudo.\033[0m\n'
+  printf '    Review the staged launcher:\n'
+  printf '      less "%s"\n\n' "$STAGED_LAUNCHER"
+  printf '    Then complete the system-wide install yourself:\n'
+  printf '      sudo mkdir -p "%s"\n' "$INSTALL_DIR"
+  printf '      sudo install -m 755 "%s" "%s"\n\n' "$STAGED_LAUNCHER" "$DEST"
+}
+
 # ── verify installation ───────────────────────────────────────────────────────
 
 verify_install() {
+  if [ "$INSTALL_PENDING" = "1" ]; then
+    return
+  fi
+
   if ! command -v caipe >/dev/null 2>&1; then
     printf '\n\033[33m  ! caipe is not in your PATH.\033[0m\n'
     printf '    Add %s to your PATH:\n' "$INSTALL_DIR"
@@ -208,9 +262,17 @@ main() {
 
   detect_platform
   resolve_version
+  choose_install_dir
+  info "Install directory: ${INSTALL_DIR}"
   download_binary
   install_binary
   verify_install
+
+  if [ "$INSTALL_PENDING" = "1" ]; then
+    printf '\n\033[32mDownload and verification complete.\033[0m\n'
+    printf 'Run the reviewed system-install commands shown above to finish.\n\n'
+    return
+  fi
 
   printf '\n\033[32mInstallation complete!\033[0m\n'
   printf 'Get started:\n'
