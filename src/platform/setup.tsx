@@ -15,6 +15,7 @@ import { Box, Text, useApp, useInput } from "ink";
 import { render } from "ink";
 import React, { useState } from "react";
 import { readSettings, writeSettings } from "./config.js";
+import { getTerminalTheme } from "./theme.js";
 
 // ---------------------------------------------------------------------------
 // Ink wizard component
@@ -25,6 +26,7 @@ interface WizardProps {
 }
 
 function SetupWizard({ onDone }: WizardProps): React.ReactElement {
+  const theme = getTerminalTheme();
   const { exit } = useApp();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -61,19 +63,19 @@ function SetupWizard({ onDone }: WizardProps): React.ReactElement {
 
   return (
     <Box flexDirection="column" marginY={1}>
-      <Text bold color="cyan">
+      <Text bold color={theme.accent}>
         Welcome to CAIPE CLI — First-time Setup
       </Text>
       <Box marginTop={1}>
         <Text>Enter your caipe-ui URL (e.g. https://caipe.your-company.com): </Text>
       </Box>
       <Box>
-        <Text color="green">{input}</Text>
-        <Text color="gray">█</Text>
+        <Text color={theme.prompt}>{input}</Text>
+        <Text color={theme.muted}>█</Text>
       </Box>
       {error !== null && (
         <Box marginTop={1}>
-          <Text color="red">{error}</Text>
+          <Text color={theme.danger}>{error}</Text>
         </Box>
       )}
       <Box marginTop={1}>

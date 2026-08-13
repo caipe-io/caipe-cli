@@ -1,6 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import type React from "react";
 
+import { getTerminalTheme } from "../platform/theme.js";
 import { type ShellApprovalRequest, shellApprovalTitle } from "./shell-hitl.js";
 
 export interface ShellApprovalPromptProps {
@@ -17,6 +18,7 @@ export function ShellApprovalPrompt({
   onApprove,
   onDeny,
 }: ShellApprovalPromptProps): React.ReactElement {
+  const theme = getTerminalTheme();
   useInput(
     (input, key) => {
       if (key.escape) {
@@ -40,19 +42,19 @@ export function ShellApprovalPrompt({
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="yellow"
+      borderColor={theme.warning}
       marginX={1}
       marginBottom={1}
       paddingX={1}
     >
       <Box marginBottom={1}>
-        <Text bold color="yellow">
+        <Text bold color={theme.warning}>
           {title}
         </Text>
       </Box>
       <Box marginLeft={2} marginBottom={1}>
         <Text dimColor>└ </Text>
-        <Text color="cyan">$ </Text>
+        <Text color={theme.accent}>$ </Text>
         <Text wrap="wrap">{request.cmd}</Text>
       </Box>
       <Text dimColor>y / Enter allow · n / Esc deny</Text>

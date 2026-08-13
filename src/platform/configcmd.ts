@@ -4,6 +4,7 @@
 
 import { getServerUrl, readSettings, writeSettings } from "./config.js";
 import { clearAgentConfigCache, discoverAuthIssuer } from "./discovery.js";
+import { THEME_PREFERENCES, parseThemePreference, setThemePreference } from "./theme.js";
 
 function normalizeConfigUrl(value: string, key: string): string {
   const v = value.trim().replace(/\/+$/, "");
@@ -22,7 +23,8 @@ type SupportedKey =
   | "auth.credential-storage"
   | "auth.idp-hint"
   | "agent.default"
-  | "kb.url";
+  | "kb.url"
+  | "ui.theme";
 
 const SUPPORTED_KEYS: SupportedKey[] = [
   "auth.url",
@@ -32,6 +34,7 @@ const SUPPORTED_KEYS: SupportedKey[] = [
   "auth.idp-hint",
   "agent.default",
   "kb.url",
+  "ui.theme",
 ];
 
 const CREDENTIAL_STORAGE_VALUES = ["encrypted-file", "keychain"] as const;
@@ -146,6 +149,16 @@ export async function runConfigSet(key: string, value: string): Promise<void> {
     process.stdout.write(`Set kb.url = ${url}\n`);
     return;
   }
+
+  if (key === "ui.theme") {
+    const theme = parseThemePreference(value);
+    if (!theme) {
+      process.stderr.write(`[ERROR] ui.theme must be one of: ${THEME_PREFERENCES.join(", ")}\n`);
+      process.exit(3);
+    }
+    setThemePreference(theme);
+    process.stdout.write(`Set ui.theme = ${theme}\n`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +217,15 @@ export async function runConfigGet(key: string, opts: { json?: boolean }): Promi
     } else {
       value = settings.kb?.url;
     }
+  } else if (key === "ui.theme") {
+    const envVal = process.env.CAIPE_THEME;
+    if (envVal) {
+      value = envVal;
+      source = "CAIPE_THEME env var";
+    } else {
+      value = settings.ui?.theme ?? "auto";
+      source = settings.ui?.theme ? "settings.json" : "default";
+    }
   }
 
   if (opts.json) {
@@ -251,6 +273,8 @@ export async function runConfigUnset(key: string): Promise<void> {
     settings.agent.default = undefined;
   } else if (key === "kb.url" && settings.kb) {
     settings.kb.url = undefined;
+  } else if (key === "ui.theme" && settings.ui) {
+    settings.ui.theme = undefined;
   }
 
   writeSettings(settings);

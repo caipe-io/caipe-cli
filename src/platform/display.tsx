@@ -8,16 +8,11 @@
 import { homedir } from "node:os";
 import { Box, Text } from "ink";
 import React from "react";
-
-const NO_COLOR = Boolean(process.env.NO_COLOR);
+import { ANSI_DIM, ANSI_RESET, ansiColor, getTerminalTheme } from "./theme.js";
 
 // ---------------------------------------------------------------------------
 // Session banner
 // ---------------------------------------------------------------------------
-
-const CYAN = NO_COLOR ? "" : "\x1b[96m";
-const DIM = NO_COLOR ? "" : "\x1b[2m";
-const RESET = NO_COLOR ? "" : "\x1b[0m";
 
 export interface SessionBannerInfo {
   agentName: string;
@@ -42,17 +37,21 @@ function serverHost(serverUrl: string): string {
 
 /** Compact startup context, inspired by modern coding-agent CLIs. */
 export function formatSessionBanner(info: SessionBannerInfo): string {
+  const theme = getTerminalTheme();
+  const accent = ansiColor(theme.accent);
+  const dim = theme.colorEnabled ? ANSI_DIM : "";
+  const reset = theme.colorEnabled ? ANSI_RESET : "";
   const displayAgent =
     info.agentDisplayName === info.agentName
       ? info.agentName
       : `${info.agentDisplayName} (${info.agentName})`;
   const resume = info.resumed ? " · resumed" : "";
   return [
-    `${CYAN}CAIPE${RESET}${resume}`,
-    `  ${DIM}agent${RESET}     ${displayAgent}`,
-    `  ${DIM}workspace${RESET} ${compactHome(info.workingDir)}`,
-    `  ${DIM}server${RESET}    ${serverHost(info.serverUrl)}`,
-    `  ${DIM}hint${RESET}      / commands · Ctrl+O agents`,
+    `${accent}CAIPE${reset}${resume}`,
+    `  ${dim}agent${reset}     ${displayAgent}`,
+    `  ${dim}workspace${reset} ${compactHome(info.workingDir)}`,
+    `  ${dim}server${reset}    ${serverHost(info.serverUrl)}`,
+    `  ${dim}hint${reset}      / commands · Ctrl+O agents`,
     "",
   ].join("\n");
 }
@@ -83,9 +82,10 @@ export interface SpinnerProps {
  * Animated Ink spinner component using CAIPE's unique beacon frames.
  * Falls back to ASCII when NO_COLOR is set.
  */
-export function Spinner({ label, color = "cyan" }: SpinnerProps): React.ReactElement {
+export function Spinner({ label, color }: SpinnerProps): React.ReactElement {
   const { useState, useEffect } = React;
-  const frames = NO_COLOR ? SPINNER_PLAIN : CAIPE_SPINNER_FRAMES;
+  const theme = getTerminalTheme();
+  const frames = theme.colorEnabled ? CAIPE_SPINNER_FRAMES : SPINNER_PLAIN;
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export function Spinner({ label, color = "cyan" }: SpinnerProps): React.ReactEle
 
   return (
     <Box>
-      <Text color={NO_COLOR ? undefined : color}>{frames[frame]} </Text>
+      <Text color={color ?? theme.accent}>{frames[frame]} </Text>
       <Text>{label}</Text>
     </Box>
   );
@@ -127,7 +127,8 @@ export function StreamingSpinner({
   tokenCount,
 }: StreamingSpinnerProps): React.ReactElement {
   const { useState, useEffect } = React;
-  const frames = NO_COLOR ? SPINNER_PLAIN : CAIPE_SPINNER_FRAMES;
+  const theme = getTerminalTheme();
+  const frames = theme.colorEnabled ? CAIPE_SPINNER_FRAMES : SPINNER_PLAIN;
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -137,8 +138,8 @@ export function StreamingSpinner({
 
   return (
     <Box>
-      <Text color={NO_COLOR ? undefined : "blue"}>{frames[frame]} </Text>
-      <Text color={NO_COLOR ? undefined : "blue"}>{label}… </Text>
+      <Text color={theme.info}>{frames[frame]} </Text>
+      <Text color={theme.info}>{label}… </Text>
       <Text dimColor>
         ({elapsed}s{tokenCount !== undefined && tokenCount > 0 ? ` · ~${tokenCount} tokens` : ""})
       </Text>
@@ -178,12 +179,13 @@ export interface UserMessageBarProps {
 
 /** Full-width dim band for the user's prompt (Claude Code–style). */
 export function UserMessageBar({ text, width }: UserMessageBarProps): React.ReactElement {
+  const theme = getTerminalTheme();
   return (
     <Box width={width} marginBottom={1}>
       {/* ink 5 has no Box-level background; the band tint lives on the Text nodes. */}
       <Box width={width} paddingX={1}>
-        <Text backgroundColor={NO_COLOR ? undefined : "gray"} wrap="wrap">
-          <Text bold={!NO_COLOR}>{"> "}</Text>
+        <Text backgroundColor={theme.userBackground} wrap="wrap">
+          <Text bold={theme.colorEnabled}>{"> "}</Text>
           <Text>{text}</Text>
         </Text>
       </Box>
@@ -236,7 +238,8 @@ export function ToolActivityPanel({
   omittedCount = 0,
 }: ToolActivityPanelProps): React.ReactElement {
   const { useState, useEffect } = React;
-  const frames = NO_COLOR ? SPINNER_PLAIN : CAIPE_SPINNER_FRAMES;
+  const theme = getTerminalTheme();
+  const frames = theme.colorEnabled ? CAIPE_SPINNER_FRAMES : SPINNER_PLAIN;
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -265,16 +268,13 @@ export function ToolActivityPanel({
     <Box flexDirection="column" marginBottom={1}>
       <Box paddingX={1}>
         {phase === "running" && animatedWaitEnabled() ? (
-          <Text color={NO_COLOR ? undefined : "yellow"}>{frames[frame]} </Text>
+          <Text color={theme.warning}>{frames[frame]} </Text>
         ) : phase === "running" ? (
-          <Text color={NO_COLOR ? undefined : "yellow"}>● </Text>
+          <Text color={theme.warning}>● </Text>
         ) : (
           <Text dimColor>● </Text>
         )}
-        <Text
-          color={phase === "running" && !NO_COLOR ? "yellow" : undefined}
-          dimColor={phase === "done"}
-        >
+        <Text color={phase === "running" ? theme.warning : undefined} dimColor={phase === "done"}>
           {summary}
         </Text>
       </Box>
@@ -296,12 +296,12 @@ export function ToolActivityPanel({
               {branch}{" "}
               {isUpdate ? (
                 <>
-                  <Text color={NO_COLOR ? undefined : "green"}>● </Text>
-                  <Text color={NO_COLOR ? undefined : "green"}>{label}</Text>
+                  <Text color={theme.success}>● </Text>
+                  <Text color={theme.success}>{label}</Text>
                 </>
               ) : (
                 <>
-                  $ <Text color={NO_COLOR ? undefined : "cyan"}>{label}</Text>
+                  $ <Text color={theme.accent}>{label}</Text>
                 </>
               )}
             </Text>
@@ -343,7 +343,10 @@ export function StreamWaitLine({
   tokenCount,
 }: StreamWaitLineProps): React.ReactElement {
   const { useState, useEffect } = React;
-  const frames = NO_COLOR ? SPINNER_PLAIN : ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  const theme = getTerminalTheme();
+  const frames = theme.colorEnabled
+    ? ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    : SPINNER_PLAIN;
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -356,11 +359,11 @@ export function StreamWaitLine({
 
   return (
     <Box>
-      <Text color={NO_COLOR ? undefined : "magenta"}>* </Text>
+      <Text color={theme.assistant}>* </Text>
       {animatedWaitEnabled() ? (
-        <Text color={NO_COLOR ? undefined : "magenta"}>{frames[frame]} </Text>
+        <Text color={theme.assistant}>{frames[frame]} </Text>
       ) : (
-        <Text color={NO_COLOR ? undefined : "magenta"}>● </Text>
+        <Text color={theme.assistant}>● </Text>
       )}
       <Text>{label}… </Text>
       <Text dimColor>
@@ -375,7 +378,8 @@ export function StreamWaitLine({
  */
 export function ToolRunStatus({ runs, streamElapsed }: ToolRunStatusProps): React.ReactElement {
   const { useState, useEffect } = React;
-  const frames = NO_COLOR ? SPINNER_PLAIN : CAIPE_SPINNER_FRAMES;
+  const theme = getTerminalTheme();
+  const frames = theme.colorEnabled ? CAIPE_SPINNER_FRAMES : SPINNER_PLAIN;
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -399,8 +403,8 @@ export function ToolRunStatus({ runs, streamElapsed }: ToolRunStatusProps): Reac
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={NO_COLOR ? undefined : "yellow"}>{frames[frame]} </Text>
-        <Text color={NO_COLOR ? undefined : "yellow"}>{label} </Text>
+        <Text color={theme.warning}>{frames[frame]} </Text>
+        <Text color={theme.warning}>{label} </Text>
         <Text dimColor>({streamElapsed}s)</Text>
       </Box>
     </Box>
@@ -420,6 +424,7 @@ export interface ProgressBarProps {
 }
 
 export function ProgressBar({ progress, width = 30, label }: ProgressBarProps): React.ReactElement {
+  const theme = getTerminalTheme();
   const filled = Math.round(Math.max(0, Math.min(1, progress)) * width);
   const empty = width - filled;
   const bar = "█".repeat(filled) + "░".repeat(empty);
@@ -427,7 +432,7 @@ export function ProgressBar({ progress, width = 30, label }: ProgressBarProps): 
 
   return (
     <Box>
-      <Text color={NO_COLOR ? undefined : "cyan"}>[{bar}]</Text>
+      <Text color={theme.accent}>[{bar}]</Text>
       <Text> {pct}</Text>
       {label !== undefined && <Text dimColor> {label}</Text>}
     </Box>
@@ -445,8 +450,9 @@ export function ProgressBar({ progress, width = 30, label }: ProgressBarProps): 
  *   unavailable → red ●
  */
 export function statusDot(available: boolean | "degraded"): string {
-  if (NO_COLOR) return available ? "[ok]" : "[x]";
-  if (available === true) return "\x1b[32m●\x1b[0m";
-  if (available === "degraded") return "\x1b[33m●\x1b[0m";
-  return "\x1b[31m●\x1b[0m";
+  const theme = getTerminalTheme();
+  if (!theme.colorEnabled) return available ? "[ok]" : "[x]";
+  const color =
+    available === true ? theme.success : available === "degraded" ? theme.warning : theme.danger;
+  return `${ansiColor(color)}●${ANSI_RESET}`;
 }

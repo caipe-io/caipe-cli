@@ -13,6 +13,7 @@ import {
   UserMessageBar,
 } from "../platform/display.js";
 import { AssistantBody, InkDiffBlock } from "../platform/markdown.js";
+import { getTerminalTheme } from "../platform/theme.js";
 import { isDiffBlock } from "./markdown-stream.js";
 
 export type StaticHistoryItem =
@@ -48,6 +49,7 @@ function StaticHistoryInner({
   markdownWidth,
   terminalWidth,
 }: StaticHistoryProps): React.ReactElement {
+  const theme = getTerminalTheme();
   return (
     <Static key={generation} items={items}>
       {(item) => {
@@ -59,7 +61,7 @@ function StaticHistoryInner({
           case "assistant":
             return (
               <Box key={item._key} paddingX={1} marginBottom={1} flexDirection="column">
-                <Text color="blue">{"⏺ "}</Text>
+                <Text color={theme.assistant}>{"⏺ "}</Text>
                 <Box paddingLeft={2} flexDirection="column">
                   {renderBody(item.text, markdownWidth)}
                 </Box>
@@ -68,14 +70,14 @@ function StaticHistoryInner({
           case "assistant-plain":
             return (
               <Box key={item._key} paddingX={1} marginBottom={1} flexDirection="row">
-                <Text color="blue">{"⏺ "}</Text>
+                <Text color={theme.assistant}>{"⏺ "}</Text>
                 <Text wrap="wrap">{item.text}</Text>
               </Box>
             );
           case "assistant-segment":
             return (
               <Box key={item._key} paddingX={1} flexDirection="row">
-                <Text color="blue">{item.lead ? "⏺ " : "  "}</Text>
+                <Text color={theme.assistant}>{item.lead ? "⏺ " : "  "}</Text>
                 {renderBody(item.text, markdownWidth, item.diff)}
               </Box>
             );
@@ -84,7 +86,7 @@ function StaticHistoryInner({
               <Text key={item._key}>{item.text}</Text>
             ) : (
               <Box key={item._key} paddingX={1}>
-                <Text color="blue">{"⏺ "}</Text>
+                <Text color={theme.assistant}>{"⏺ "}</Text>
               </Box>
             );
           case "tool-activity":
@@ -100,7 +102,7 @@ function StaticHistoryInner({
           case "tool":
             return (
               <Box key={item._key} paddingX={1} marginLeft={2}>
-                <Text color="green">
+                <Text color={theme.success}>
                   {"✓ "}
                   {item.name}
                 </Text>

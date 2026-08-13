@@ -14,7 +14,7 @@ import { Box, Text, useApp, useInput, useStdout } from "ink";
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 import { AgentPicker } from "../agents/AgentPicker.js";
-import { filterAgents, sortAgentsForPicker } from "../agents/picker.js";
+import { filterAgents, sortAgentsForPicker, truncateText } from "../agents/picker.js";
 import { fetchAgents, getAgent } from "../agents/registry.js";
 import type { Agent } from "../agents/types.js";
 import { loginBrowser } from "../auth/oauth.js";
@@ -29,6 +29,13 @@ import {
 import { ToolActivityPanel, type ToolActivityRun } from "../platform/display.js";
 import { getMarkdownLayoutWidth, getTerminalWidth } from "../platform/markdown.js";
 import { maxStaticToolTreeRows } from "../platform/terminal/repl-ui.js";
+import {
+  THEME_PREFERENCES,
+  getTerminalTheme,
+  getThemePreference,
+  parseThemePreference,
+  setThemePreference,
+} from "../platform/theme.js";
 import { fetchSupervisorSkills } from "../skills/catalog.js";
 import { SessionPicker } from "./SessionPicker.js";
 import { ShellApprovalPrompt } from "./ShellApprovalPrompt.js";
@@ -63,7 +70,12 @@ import {
 import { parseInput, pipeThrough, runShellCommand } from "./pipes.js";
 import { extractRecap } from "./recap.js";
 import { type ShellApprovalRequest, isShellHitlEnabled } from "./shell-hitl.js";
-import { FOOTER_HINT_IDLE, SHORTCUT_AGENT_PICKER, SHORTCUT_SLASH_COMMANDS } from "./shortcuts.js";
+import {
+  FOOTER_HINT_IDLE,
+  SHORTCUT_AGENT_PICKER,
+  SHORTCUT_SLASH_COMMANDS,
+  footerLayoutDirection,
+} from "./shortcuts.js";
 import { formatSessionStatus } from "./status.js";
 import { createAdapter } from "./stream.js";
 import type { StreamAdapter } from "./stream.js";
@@ -130,12 +142,21 @@ interface SlashCommand {
   description: string;
 }
 
+export function slashCommandQuery(input: string): string {
+  return input.slice(1).trimStart().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+}
+
+export function slashInputHasArguments(input: string): boolean {
+  return /^\/\S+\s+\S/.test(input);
+}
+
 const SLASH_COMMANDS: SlashCommand[] = [
   { name: "/clear", description: "Clear conversation context" },
   { name: "/compact", description: "Summarize and compress history" },
   { name: "/login", description: "Re-authenticate (opens browser)" },
   { name: "/settings", description: "View or edit CLI configuration" },
   { name: "/status", description: "Show session, agent, and server context" },
+  { name: "/theme", description: "View or switch terminal color theme" },
   { name: "/exit", description: "End session and save history" },
   { name: "/skills", description: "Show skills loaded in supervisor" },
   { name: "/agents", description: "Switch to a different agent" },
@@ -155,6 +176,7 @@ interface SlashPickerProps {
 }
 
 function SlashPicker({ input, selectedIndex, filtered }: SlashPickerProps): React.ReactElement {
+  const theme = getTerminalTheme();
   const query = input.slice(1).toLowerCase();
   const safeIndex = clampPickerIndex(selectedIndex, filtered.length);
   const { start, end } = pickerWindow(filtered.length, safeIndex, SLASH_PICKER_VISIBLE);
@@ -164,13 +186,13 @@ function SlashPicker({ input, selectedIndex, filtered }: SlashPickerProps): Reac
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="cyan"
+      borderColor={theme.accent}
       marginX={1}
       marginBottom={0}
       paddingX={1}
     >
       <Box>
-        <Text bold color="cyan">
+        <Text bold color={theme.accent}>
           Slash commands
         </Text>
         <Text dimColor> · ↑↓ · PgUp/PgDn · Tab complete · Enter run · Esc dismiss</Text>
@@ -185,11 +207,11 @@ function SlashPicker({ input, selectedIndex, filtered }: SlashPickerProps): Reac
             const sel = idx === safeIndex;
             return (
               <Box key={cmd.name}>
-                <Text color={sel ? "cyan" : undefined}>{sel ? "▶ " : "  "}</Text>
-                <Text color={sel ? "cyan" : "white"} bold={sel}>
+                <Text color={sel ? theme.accent : undefined}>{sel ? "▶ " : "  "}</Text>
+                <Text color={sel ? theme.accent : undefined} bold={sel}>
                   {cmd.name.padEnd(14)}
                 </Text>
-                <Text dimColor={!sel} color={sel ? "white" : undefined}>
+                <Text dimColor={!sel} color={sel ? theme.selectedForeground : undefined}>
                   {cmd.description}
                 </Text>
               </Box>
@@ -252,6 +274,7 @@ function InputBar({
   disabled = false,
   history = [],
 }: InputBarProps): React.ReactElement {
+  const theme = getTerminalTheme();
   const [cursor, setCursor] = useState(value.length);
   const [historyIdx, setHistoryIdx] = useState(history.length);
   const stashedRef = useRef("");
@@ -463,12 +486,12 @@ function InputBar({
         <Text dimColor>{`(reverse-i-search)\`${revSearch.query}': ${value}`}</Text>
       ) : null}
       <Box>
-        <Text color={disabled ? "gray" : "green"} bold>
+        <Text color={disabled ? theme.muted : theme.prompt} bold>
           {"❯ "}
         </Text>
         <Text>{before}</Text>
         {!disabled && (
-          <Text color="green" inverse>
+          <Text color={theme.prompt} inverse>
             {at || " "}
           </Text>
         )}
@@ -483,11 +506,10 @@ function InputBar({
 // HRule (memoized)
 // ---------------------------------------------------------------------------
 
-const HRule = React.memo(function HRule({
-  color = "gray",
-}: { color?: string }): React.ReactElement {
+const HRule = React.memo(function HRule(): React.ReactElement {
+  const theme = getTerminalTheme();
   const cols = Math.max(20, getMarkdownLayoutWidth("full"));
-  return <Text color={color}>{"─".repeat(cols)}</Text>;
+  return <Text color={theme.muted}>{"─".repeat(cols)}</Text>;
 });
 
 // ---------------------------------------------------------------------------
@@ -608,6 +630,8 @@ export function Repl({
   const [streaming, setStreaming] = useState(false);
   const [totalTokenDisplay, setTotalTokenDisplay] = useState(0);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [activeThemePreference, setActiveThemePreference] = useState(getThemePreference);
+  const activeTheme = getTerminalTheme(activeThemePreference);
   const [pickerIndex, setPickerIndex] = useState(0);
   /** Full agent list while interactive /agents picker is open (filter text = `input`). */
   const [agentPickerCatalog, setAgentPickerCatalog] = useState<Agent[] | null>(null);
@@ -919,7 +943,7 @@ export function Repl({
   // ── Slash picker ──
   const filteredCommands = useMemo<SlashCommand[]>(() => {
     if (!input?.startsWith("/")) return [];
-    const query = input.slice(1).toLowerCase().trim();
+    const query = slashCommandQuery(input);
     if (query === "") return SLASH_COMMANDS;
     return SLASH_COMMANDS.filter(
       (c) => c.name.slice(1).includes(query) || c.description.toLowerCase().includes(query),
@@ -1254,6 +1278,29 @@ export function Repl({
           break;
         }
 
+        case "/theme": {
+          const arg = cmd.slice("/theme".length).trim();
+          if (!arg) {
+            pushSystemPlain(
+              `Theme: ${activeThemePreference} (${activeTheme.name})\nAvailable: ${THEME_PREFERENCES.join(", ")}\nUse: /theme <name>`,
+            );
+            break;
+          }
+          const preference = parseThemePreference(arg);
+          if (!preference) {
+            pushSystemPlain(`Unknown theme "${arg}". Choose: ${THEME_PREFERENCES.join(", ")}`);
+            break;
+          }
+          setThemePreference(preference);
+          setActiveThemePreference(preference);
+          const resolved = getTerminalTheme(preference).name;
+          setStatusText(
+            `Theme changed to ${preference}${resolved !== preference ? ` (rendering ${resolved})` : ""}.`,
+          );
+          setTimeout(() => setStatusText(null), 2000);
+          break;
+        }
+
         case "/skills":
           setStatusText("Loading skills from supervisor…");
           try {
@@ -1419,6 +1466,7 @@ export function Repl({
               `- **auth.url** = \`${s.auth?.url ?? "(not set)"}\``,
               `- **auth.idp-hint** = \`${s.auth?.idpHint ?? "(not set)"}\``,
               `- **auth.credential-storage** = \`${s.auth?.credentialStorage ?? "encrypted-file"}\``,
+              `- **ui.theme** = \`${s.ui?.theme ?? "auto"}\``,
               "\nTo edit, set **EDITOR** or run `caipe config set <key> <value>`",
             ];
             pushAssistant(lines.join("\n"));
@@ -1438,6 +1486,8 @@ export function Repl({
       streaming,
       serverUrl,
       currentAgent,
+      activeThemePreference,
+      activeTheme.name,
       switchToAgent,
       openAgentPicker,
       openSessionPicker,
@@ -1650,6 +1700,12 @@ export function Repl({
         return;
       }
       if (showPicker && filteredCommands.length > 0) {
+        if (slashInputHasArguments(raw)) {
+          setInput("");
+          setPickerIndex(0);
+          void handleSubmit(raw);
+          return;
+        }
         const selected = filteredCommands[clampPickerIndex(pickerIndex, filteredCommands.length)];
         if (selected) {
           void executeSlashCommand(selected.name);
@@ -1657,6 +1713,10 @@ export function Repl({
           setPickerIndex(0);
           return;
         }
+      }
+      if (showPicker) {
+        setInput("");
+        setPickerIndex(0);
       }
       void handleSubmit(raw);
     },
@@ -1828,6 +1888,7 @@ export function Repl({
 
   const markdownWidth = getMarkdownLayoutWidth("assistant", terminalCols);
   const terminalWidth = terminalCols;
+  const footerDirection = footerLayoutDirection(terminalCols);
 
   return (
     <Box flexDirection="column" height="100%">
@@ -1932,7 +1993,11 @@ export function Repl({
 
       <HRule />
 
-      <Box paddingX={2} justifyContent="space-between">
+      <Box
+        paddingX={2}
+        flexDirection={footerDirection}
+        justifyContent={footerDirection === "column" ? "flex-start" : "space-between"}
+      >
         <Box flexDirection="column">
           {streaming ? (
             <Text dimColor>Esc cancel · Ctrl+C stop</Text>
@@ -1942,12 +2007,13 @@ export function Repl({
             <Text dimColor>{FOOTER_HINT_IDLE}</Text>
           )}
         </Box>
-        <Text dimColor>
+        <Text dimColor wrap="truncate">
           {currentAgent.name !== "hello-world" && currentAgent.name !== "default"
-            ? `${currentAgent.name} · `
+            ? `${truncateText(currentAgent.displayName || currentAgent.name, 24)} · `
             : ""}
           {totalTokenDisplay > 0 ? `~${totalTokenDisplay} tokens · ` : ""}
           {serverHost ?? ""}
+          {activeTheme.preference !== "auto" ? ` · ${activeTheme.name}` : ""}
         </Text>
       </Box>
     </Box>

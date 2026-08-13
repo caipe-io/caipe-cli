@@ -87,6 +87,12 @@ describe("settings read/write", () => {
     expect(s.agent?.default).toBe("agent-sre");
   });
 
+  it("round-trips ui.theme", () => {
+    writeSettings({ ui: { theme: "high-contrast" } });
+    const s = readSettings();
+    expect(s.ui?.theme).toBe("high-contrast");
+  });
+
   it("handles corrupted settings file gracefully", () => {
     const { writeFileSync, mkdirSync } = require("node:fs") as typeof import("fs");
     mkdirSync(require("node:path").dirname(settingsJsonPath()), { recursive: true });

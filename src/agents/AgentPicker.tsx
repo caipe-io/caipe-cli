@@ -7,6 +7,7 @@ import type React from "react";
 
 import { PICKER_HINT_NAV } from "../chat/shortcuts.js";
 import { isRichTerminalEnabled } from "../platform/terminal/capabilities.js";
+import { getTerminalTheme } from "../platform/theme.js";
 import { pickerWindow, truncateText } from "./picker.js";
 import type { Agent } from "./types.js";
 
@@ -34,9 +35,16 @@ export function AgentPicker({
   filter,
   visibleRowCount = 8,
 }: AgentPickerProps): React.ReactElement {
+  const theme = getTerminalTheme();
   if (agents.length === 0) {
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor="yellow" marginX={1} paddingX={1}>
+      <Box
+        flexDirection="column"
+        borderStyle="round"
+        borderColor={theme.warning}
+        marginX={1}
+        paddingX={1}
+      >
         <Text dimColor>No agents match {filter ? `"${filter}"` : "filter"}.</Text>
       </Box>
     );
@@ -49,9 +57,15 @@ export function AgentPicker({
   const slice = agents.slice(start, end);
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" marginX={1} paddingX={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={theme.accent}
+      marginX={1}
+      paddingX={1}
+    >
       <Box marginBottom={0}>
-        <Text bold color="cyan">
+        <Text bold color={theme.accent}>
           Select agent
         </Text>
         <Text dimColor>
@@ -69,8 +83,8 @@ export function AgentPicker({
         const descLine = selected ? truncateText(desc, DESC_SELECTED_MAX) : "";
         const num = String(idx + 1).padStart(2, " ");
 
-        const rowBg = selected && rich ? "blue" : undefined;
-        const titleColor = selected ? (rich ? "white" : "cyan") : undefined;
+        const rowBg = selected && rich ? theme.selectedBackground : undefined;
+        const titleColor = selected ? (rich ? theme.selectedForeground : theme.accent) : undefined;
         const titleDim = !selected;
 
         return (
@@ -82,7 +96,7 @@ export function AgentPicker({
                 <Text
                   backgroundColor={rowBg}
                   bold={selected}
-                  color={selected ? "cyan" : undefined}
+                  color={selected ? theme.accent : undefined}
                   dimColor={!selected}
                 >
                   {`${num} `}
@@ -108,7 +122,7 @@ export function AgentPicker({
                   <Text
                     backgroundColor={rowBg}
                     bold={selected}
-                    color={selected && rich ? "white" : undefined}
+                    color={selected && rich ? theme.selectedForeground : undefined}
                     dimColor={!selected || !rich}
                   >
                     {" · in session"}
@@ -120,7 +134,7 @@ export function AgentPicker({
                   <Box paddingLeft={2}>
                     <Text
                       backgroundColor={rowBg}
-                      color={rich ? "white" : "cyan"}
+                      color={rich ? theme.selectedForeground : theme.accent}
                       dimColor={!rich}
                       wrap="truncate"
                     >
@@ -130,7 +144,7 @@ export function AgentPicker({
                   <Box paddingLeft={2}>
                     <Text
                       backgroundColor={rowBg}
-                      color={rich ? "white" : undefined}
+                      color={rich ? theme.selectedForeground : undefined}
                       dimColor={!rich}
                       wrap="wrap"
                     >
@@ -145,11 +159,11 @@ export function AgentPicker({
       })}
       {end < agents.length ? <Text dimColor>{`  ↓ ${agents.length - end} more below`}</Text> : null}
       <Box marginTop={0}>
-        <Text color="cyan" bold>
+        <Text color={theme.accent} bold>
           {`${safeIndex + 1}/${agents.length}`}
         </Text>
         <Text dimColor> · </Text>
-        <Text bold color="white">
+        <Text bold color={theme.accent}>
           {selectedAgent ? agentTitle(selectedAgent) : ""}
         </Text>
         <Text dimColor>{` · Enter switch · ${agents.length} total · or /agents <id>`}</Text>

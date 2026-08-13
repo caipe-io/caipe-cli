@@ -5,6 +5,7 @@
 import { Box, Text } from "ink";
 import type React from "react";
 
+import { getTerminalTheme } from "../platform/theme.js";
 import type { SessionSummary } from "./history.js";
 import { pickerWindow } from "./picker-nav.js";
 import { PICKER_HINT_NAV } from "./shortcuts.js";
@@ -35,9 +36,16 @@ export function SessionPicker({
   filter,
   visibleRowCount = 10,
 }: SessionPickerProps): React.ReactElement {
+  const theme = getTerminalTheme();
   if (sessions.length === 0) {
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor="yellow" marginX={1} paddingX={1}>
+      <Box
+        flexDirection="column"
+        borderStyle="round"
+        borderColor={theme.warning}
+        marginX={1}
+        paddingX={1}
+      >
         <Text dimColor>No sessions match {filter ? `"${filter}"` : "filter"}.</Text>
       </Box>
     );
@@ -49,9 +57,15 @@ export function SessionPicker({
   const slice = sessions.slice(start, end);
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" marginX={1} paddingX={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={theme.accent}
+      marginX={1}
+      paddingX={1}
+    >
       <Box marginBottom={0}>
-        <Text bold color="cyan">
+        <Text bold color={theme.accent}>
           Resume session
         </Text>
         <Text dimColor>
@@ -71,11 +85,11 @@ export function SessionPicker({
             {i > 0 ? <Text dimColor>{ROW_SEPARATOR}</Text> : null}
             <Box flexDirection="column">
               <Box>
-                <Text bold={sel} color={sel ? "cyan" : undefined} dimColor={!sel}>
+                <Text bold={sel} color={sel ? theme.accent : undefined} dimColor={!sel}>
                   {`${num} `}
                 </Text>
-                <Text color={sel ? "cyan" : undefined}>{sel ? "▶ " : "  "}</Text>
-                <Text bold={sel} color={sel ? "cyan" : "white"}>
+                <Text color={sel ? theme.accent : undefined}>{sel ? "▶ " : "  "}</Text>
+                <Text bold={sel} color={sel ? theme.accent : undefined}>
                   {shortSessionId(s.sessionId).padEnd(22)}
                 </Text>
                 <Text dimColor={!sel}> {s.agentName.padEnd(28).slice(0, 28)} </Text>
@@ -99,11 +113,11 @@ export function SessionPicker({
         <Text dimColor>{`  ↓ ${sessions.length - end} more below`}</Text>
       ) : null}
       <Box marginTop={0}>
-        <Text color="cyan" bold>
+        <Text color={theme.accent} bold>
           {`${safeIndex + 1}/${sessions.length}`}
         </Text>
         <Text dimColor> · </Text>
-        <Text bold color="white">
+        <Text bold color={theme.accent}>
           {selected ? shortSessionId(selected.sessionId) : ""}
         </Text>
         <Text dimColor> · Enter resume · Esc dismiss</Text>
