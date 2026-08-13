@@ -31,6 +31,7 @@ export async function runLogin(
     setupWizard?: boolean;
     isolated?: boolean;
     systemBrowser?: boolean;
+    callbackPort?: number;
   },
   globalOpts: GlobalOpts,
 ): Promise<void> {
@@ -82,7 +83,7 @@ export async function runLogin(
     let browser: "isolated" | "system" | undefined;
     if (opts.systemBrowser) browser = "system";
     else if (opts.isolated) browser = "isolated";
-    await loginBrowser(authUrl, clientId, { browser });
+    await loginBrowser(authUrl, clientId, { browser, callbackPort: opts.callbackPort });
   }
 
   const tokens = await loadTokens();

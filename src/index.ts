@@ -75,6 +75,10 @@ authCmd
     "--system-browser",
     "OAuth in your default browser profile (may affect an open Web UI tab)",
   )
+  .option(
+    "--callback-port <port>",
+    "OAuth loopback port; the IdP must register the matching redirect URI",
+  )
   .action(async (opts: Record<string, unknown>) => {
     const { runLogin } = await import("./auth/commands.js");
     await runLogin(
@@ -85,6 +89,7 @@ authCmd
         setupWizard: opts.setupWizard === true,
         isolated: opts.isolated === true,
         systemBrowser: opts.systemBrowser === true,
+        callbackPort: typeof opts.callbackPort === "string" ? Number(opts.callbackPort) : undefined,
       },
       program.opts(),
     );

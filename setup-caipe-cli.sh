@@ -182,7 +182,7 @@ main() {
   maybe_configure_server
   ok "Done"
   printf '\nNext steps:\n'
-  printf '  caipe config set server.url https://your-grid-host.example.com\n'
+  printf '  caipe config set server.url https://your-caipe-host.example.com\n'
   printf '  caipe auth login\n'
   printf '  caipe chat\n\n'
   run_caipe "$@"

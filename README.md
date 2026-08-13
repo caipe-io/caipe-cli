@@ -174,6 +174,7 @@ caipe config set auth.idp-hint duo-sso
 | `CAIPE_STREAM_BUFFER_MS` | Token flush interval while streaming (default `50`) |
 | `CAIPE_STREAM_PLAIN` | Set to `1` for legacy plain-text chunk streaming (no live markdown colors) |
 | `CAIPE_IDP_HINT` | Keycloak `kc_idp_hint` |
+| `CAIPE_CALLBACK_PORT` | OAuth loopback port (default `8085`; the IdP must register any override) |
 | `CAIPE_TOKEN` | Bearer token (headless / CI) |
 | `CAIPE_KB_URL` | Knowledge Base RAG API base URL |
 | `CAIPE_TENANT_ID` | `X-Tenant-Id` for KB API calls (when not using default tenant) |
@@ -185,6 +186,7 @@ caipe config set auth.idp-hint duo-sso
 |---------|------------|
 | `Already authenticated as (unknown)` | `caipe auth logout` then `caipe auth login`, or upgrade to a build with session fixes |
 | Browser **404** on `/oauth/authorize` | Set `auth.url` to the realm issuer (see the split API/IdP section above) |
+| OAuth callback port `8085` is busy | CAIPE automatically retries on IPv6 loopback. Otherwise use `--device`, `--manual`, or `--callback-port <port>` when that port is registered with the IdP. |
 | `Invalid client_type: cli` | CLI retries with `slack` on older BFFs; upgrade UI to add `cli` to `VALID_CLIENT_TYPES` |
 | **403** `agent#use` / `pdp_denied` | Run `caipe agents list`, then `caipe chat --agent <id>` for an agent you can use; ask admin for OpenFGA **agent#use** if the list is empty |
 

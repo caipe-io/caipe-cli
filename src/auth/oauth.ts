@@ -78,6 +78,40 @@ export interface CallbackResult {
   state: string;
 }
 
+interface CallbackServer {
+  ready: Promise<void>;
+  result: Promise<CallbackResult>;
+  close: () => void;
+}
+
+function callbackServerError(err: unknown, port: number): Error {
+  const code =
+    typeof err === "object" && err !== null && "code" in err ? String(err.code) : undefined;
+  if (code === "EADDRINUSE") {
+    const friendlyError = new Error(
+      [
+        `OAuth callback port ${port} is already in use.`,
+        "",
+        "Choose one of these login options:",
+        `  1. Find the process: lsof -nP -iTCP:${port} -sTCP:LISTEN`,
+        "     Stop it, then retry: caipe auth login",
+        "  2. Use device authorization (no callback port): caipe auth login --device",
+        "  3. Paste a code manually: caipe auth login --manual",
+        "  4. Use another registered port: caipe auth login --callback-port <port>",
+        "",
+        `CAIPE uses port ${port} because the callback URL must match the OAuth client's registered redirect URI.`,
+      ].join("\n"),
+    );
+    Object.assign(friendlyError, { code });
+    return friendlyError;
+  }
+
+  const detail = err instanceof Error ? err.message : String(err);
+  return new Error(
+    `Could not start the OAuth callback server on port ${port}: ${detail}\n\nTry device authorization (\`caipe auth login --device\`) or manual login (\`caipe auth login --manual\`).`,
+  );
+}
+
 /**
  * Spin up a local HTTP server on `port` that captures the OAuth redirect.
  *
@@ -85,12 +119,10 @@ export interface CallbackResult {
  *   ready  — resolves once the server is actually listening (safe to open browser)
  *   result — resolves with the first ?code= callback received
  */
-export function startCallbackServer(port: number): {
-  ready: Promise<void>;
-  result: Promise<CallbackResult>;
-} {
+export function startCallbackServer(port: number, bindHost = "127.0.0.1"): CallbackServer {
   let readyResolve!: () => void;
   let readyReject!: (e: unknown) => void;
+  let closeServer = () => {};
   const ready = new Promise<void>((res, rej) => {
     readyResolve = res;
     readyReject = rej;
@@ -115,7 +147,7 @@ export function startCallbackServer(port: number): {
         return;
       }
 
-      const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
+      const url = new URL(req.url ?? "/", `http://localhost:${port}`);
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state") ?? "";
       if (!code) {
@@ -134,26 +166,93 @@ export function startCallbackServer(port: number): {
       resolve({ code, state });
 
       // Tear down the server after the browser has had time to read the response.
-      setTimeout(() => {
-        server.close();
-        const closeAllConnections = (server as typeof server & { closeAllConnections?: () => void })
-          .closeAllConnections;
-        if (typeof closeAllConnections === "function") {
-          closeAllConnections.call(server);
-        }
-      }, 2000);
+      setTimeout(closeServer, 2000);
     });
+    closeServer = () => {
+      server.close();
+      const closeAllConnections = (server as typeof server & { closeAllConnections?: () => void })
+        .closeAllConnections;
+      if (typeof closeAllConnections === "function") {
+        closeAllConnections.call(server);
+      }
+    };
     server.on("error", (err) => {
-      readyReject(err);
-      reject(err);
+      const friendlyError = callbackServerError(err, port);
+      readyReject(friendlyError);
+      reject(friendlyError);
     });
-    server.listen(port, "127.0.0.1", () => {
-      if (debug) process.stderr.write(`[caipe-auth] Listening on 127.0.0.1:${port}\n`);
+    server.listen(port, bindHost, () => {
+      if (debug) process.stderr.write(`[caipe-auth] Listening on ${bindHost}:${port}\n`);
       readyResolve();
     });
   });
 
-  return { ready, result };
+  // A listen failure rejects both promises. Mark `result` as observed so a
+  // caller awaiting `ready` does not also receive an unhandled rejection.
+  void result.catch(() => undefined);
+
+  return { ready, result, close: () => closeServer() };
+}
+
+function configuredCallbackPort(): number {
+  const raw = process.env.CAIPE_CALLBACK_PORT?.trim();
+  if (!raw) return CALLBACK_PORT;
+  return validateCallbackPort(Number(raw), `CAIPE_CALLBACK_PORT (received "${raw}")`);
+}
+
+function validateCallbackPort(port: number, source = "OAuth callback port"): number {
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`${source} must be an integer from 1 to 65535.`);
+  }
+  return port;
+}
+
+interface BrowserCallbackServer extends CallbackServer {
+  redirectUri: string;
+  bindHost: string;
+  port: number;
+}
+
+/**
+ * Prefer IPv4 for compatibility. If another OAuth client (notably mcp-remote)
+ * owns 127.0.0.1:8085, retry on IPv6 loopback using the separately registered
+ * http://localhost:8085 redirect URI.
+ */
+export async function startBrowserCallbackServer(
+  port = configuredCallbackPort(),
+): Promise<BrowserCallbackServer> {
+  const callbackPort = validateCallbackPort(port);
+  const candidates = [
+    { bindHost: "127.0.0.1", redirectHost: "127.0.0.1" },
+    { bindHost: "::1", redirectHost: "localhost" },
+  ];
+  let lastError: unknown;
+
+  for (const [index, candidate] of candidates.entries()) {
+    const callback = startCallbackServer(callbackPort, candidate.bindHost);
+    try {
+      await callback.ready;
+      if (index > 0) {
+        process.stderr.write(
+          `[WARN] OAuth callback 127.0.0.1:${callbackPort} is busy; using localhost:${callbackPort} over IPv6.\n`,
+        );
+      }
+      return {
+        ...callback,
+        redirectUri: `http://${candidate.redirectHost}:${callbackPort}/callback`,
+        bindHost: candidate.bindHost,
+        port: callbackPort,
+      };
+    } catch (err) {
+      callback.close();
+      lastError = err;
+      const code =
+        typeof err === "object" && err !== null && "code" in err ? String(err.code) : undefined;
+      if (code !== "EADDRINUSE") throw err;
+    }
+  }
+
+  throw lastError;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,19 +335,25 @@ const CALLBACK_PORT = 8085;
 
 export type { AuthBrowserMode, LoginBrowserModeOptions } from "./browser-isolated.js";
 
+export interface BrowserLoginOptions extends LoginBrowserModeOptions {
+  /** Override the loopback port only when the IdP registers that redirect URI. */
+  callbackPort?: number;
+}
+
 export async function loginBrowser(
   serverUrl: string,
   clientId: string,
-  options?: LoginBrowserModeOptions,
+  options?: BrowserLoginOptions,
 ): Promise<TokenSet> {
   const { verifier, challenge } = generatePKCE();
-  const redirectUri = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
   const state = randomBytes(16).toString("hex");
 
   // Start the callback server FIRST — before any network calls or browser open —
   // so it is definitely listening by the time the IdP redirect arrives.
-  const { ready, result: callbackResult } = startCallbackServer(CALLBACK_PORT);
-  await ready;
+  const callback = await startBrowserCallbackServer(
+    options?.callbackPort ?? configuredCallbackPort(),
+  );
+  const { redirectUri, result: callbackResult } = callback;
 
   // Discovery may involve a network round-trip; server is already up by now.
   const ep = await getOAuthEndpoints(serverUrl, clientId);
@@ -256,7 +361,9 @@ export async function loginBrowser(
   const authUrl = `${ep.authorizationEndpoint}?response_type=code&client_id=${encodeURIComponent(ep.clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${challenge}&code_challenge_method=S256&state=${state}${idpHint ? `&kc_idp_hint=${encodeURIComponent(idpHint)}` : ""}`;
 
   if (process.env.CAIPE_AUTH_DEBUG === "1") {
-    process.stderr.write(`[caipe-auth] Callback server ready on port ${CALLBACK_PORT}\n`);
+    process.stderr.write(
+      `[caipe-auth] Callback server ready on ${callback.bindHost}:${callback.port}\n`,
+    );
   }
 
   const browserMode = resolveAuthBrowserMode(options);
@@ -292,9 +399,7 @@ export async function loginBrowser(
     process.stdout.write("Waiting for authorization…");
 
     if (process.env.CAIPE_AUTH_DEBUG === "1") {
-      process.stderr.write(
-        `\n[caipe-auth] Browser opened — waiting for localhost:${CALLBACK_PORT} callback\n`,
-      );
+      process.stderr.write(`\n[caipe-auth] Browser opened — waiting for ${redirectUri}\n`);
     }
 
     // Race the callback against a 5-minute timeout
@@ -308,8 +413,8 @@ export async function loginBrowser(
             reject(
               new Error(
                 "Browser auth timed out after 5 minutes.\n" +
-                  "Try: caipe auth login --manual\n" +
-                  "  (copies auth URL, you paste the code back)",
+                  "Try device authorization: caipe auth login --device\n" +
+                  "Or paste a code manually: caipe auth login --manual",
               ),
             ),
           TIMEOUT_MS,
@@ -326,6 +431,7 @@ export async function loginBrowser(
     await storeTokens(tokens);
     return tokens;
   } finally {
+    callback.close();
     closeBrowser?.();
   }
 }
