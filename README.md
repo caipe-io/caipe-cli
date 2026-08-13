@@ -27,6 +27,11 @@ Type messages at the `❯` prompt. **`/`** for commands, **`/status`** for the a
 **`Ctrl+O`** to pick an agent, and **`Ctrl+D`** to exit. If setup or connectivity
 looks wrong, run **`caipe doctor`** for an actionable diagnostic report.
 
+Use **`/theme`** inside chat to inspect color themes, or switch immediately with
+`/theme dark`, `/theme light`, `/theme high-contrast`, `/theme mono`, or `/theme auto`.
+Persist the choice with `caipe config set ui.theme <name>`. `CAIPE_THEME` overrides
+the saved setting, while `NO_COLOR` always disables color.
+
 Prompt line editing is implemented in-tree (`src/chat/line-edit.ts`, Apache-2.0): common bash/emacs keys (Ctrl+A/E/K/U/W/Y, Alt+b/f/d, Ctrl+R history search, etc.). It does **not** use GNU Readline or other GPL line-editing libraries.
 
 Other host (UI serves OAuth on the same URL): set only `server.url`, then `caipe auth login` and `caipe chat`.
@@ -169,6 +174,7 @@ caipe config set auth.idp-hint duo-sso
 | `CAIPE_SERVER_URL` | BFF base URL (agents, chat stream) |
 | `CAIPE_AUTH_URL` | OAuth / discovery base (login) |
 | `CAIPE_DEFAULT_AGENT` | Default dynamic agent id (overrides `agent.default` in settings) |
+| `CAIPE_THEME` | Terminal theme: `auto`, `dark`, `light`, `high-contrast`, or `mono` |
 | `CAIPE_AUTH_REALM` | Keycloak realm name for IdP heuristics (default `caipe`) |
 | `CAIPE_PLAIN_TERMINAL` | Set to `1` to disable rich markdown, alt screen, and inline images |
 | `CAIPE_NO_ALT_SCREEN` | Set to `1` to keep chat in the normal scrollback buffer |
@@ -272,10 +278,11 @@ Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENA
 | `agent.default` | Default dynamic agent id for `caipe chat` when `--agent` is omitted |
 | `auth.idp-hint` | Skip Keycloak login chooser (`kc_idp_hint`) |
 | `kb.url` | Knowledge Base RAG REST API base URL |
-
-**Rich terminal output (interactive chat):** Markdown is rendered with **react-markdown** + **remark-gfm** as native Ink components (no ANSI markdown strings). Diffs use Ink colors. Block streaming caches completed sections in `<Static>`; the active tail updates in place. Tool runs show in the footer. Chat uses the **alternate screen** unless `CAIPE_NO_ALT_SCREEN=1` or `CAIPE_PLAIN_TERMINAL=1`. Legacy plain streaming: `CAIPE_STREAM_PLAIN=1`.
+| `ui.theme` | Terminal theme: `auto`, `dark`, `light`, `high-contrast`, or `mono` |
 | `auth.apiKey` | Static API key (headless alternative) |
 | `auth.credential-storage` | `encrypted-file` (default) or `keychain` |
+
+**Rich terminal output (interactive chat):** Markdown is rendered with **react-markdown** + **remark-gfm** as native Ink components (no ANSI markdown strings). Diffs use Ink colors. Block streaming caches completed sections in `<Static>`; the active tail updates in place. Tool runs show in the footer. Chat uses the **alternate screen** unless `CAIPE_NO_ALT_SCREEN=1` or `CAIPE_PLAIN_TERMINAL=1`. Legacy plain streaming: `CAIPE_STREAM_PLAIN=1`.
 
 **Default credentials:** encrypted file at `~/.config/caipe/credentials.enc` (AES-256-GCM, machine-derived key). No Keychain prompts unless you opt into `keychain`.
 

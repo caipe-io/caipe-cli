@@ -18,6 +18,8 @@ import { join } from "node:path";
 // Types
 // ---------------------------------------------------------------------------
 
+export type ConfiguredTheme = "auto" | "dark" | "light" | "high-contrast" | "mono";
+
 export interface Settings {
   server?: {
     /** Legacy field — kept for backward compat reading old settings.json */
@@ -47,6 +49,10 @@ export interface Settings {
   kb?: {
     /** Knowledge Base RAG REST API base URL (CAIPE_KB_URL overrides) */
     url?: string;
+  };
+  ui?: {
+    /** Terminal color theme. Env override: CAIPE_THEME. */
+    theme?: ConfiguredTheme;
   };
 }
 
@@ -266,6 +272,10 @@ export function getConfiguredDefaultAgent(): string | undefined {
   const fromSettings = readSettings().agent?.default;
   if (fromSettings && fromSettings.trim() !== "") return fromSettings.trim();
   return undefined;
+}
+
+export function getConfiguredTheme(): ConfiguredTheme | undefined {
+  return readSettings().ui?.theme;
 }
 
 /**

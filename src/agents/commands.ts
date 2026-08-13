@@ -8,10 +8,22 @@ import { getValidToken } from "../auth/tokens.js";
 import { getAuthUrl, getServerUrl } from "../platform/config.js";
 import { AgentList } from "./List.js";
 import { fetchAgents, getAgent } from "./registry.js";
+import type { Agent } from "./types.js";
 
 interface GlobalOpts {
   url?: string;
   json?: boolean;
+}
+
+export function formatAgentListPlain(agents: Agent[]): string {
+  const lines = [`Accessible agents (${agents.length})`, ""];
+  for (const agent of agents) {
+    const dot = agent.available ? "✓" : "✗";
+    const display = agent.displayName.trim() || agent.name;
+    lines.push(`${dot} ${display}`);
+    lines.push(`  ${agent.name} · ${agent.domain} · ${(agent.protocols ?? ["agui"]).join(", ")}`);
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 export async function runAgentsList(
@@ -42,12 +54,7 @@ export async function runAgentsList(
   }
 
   if (!process.stdout.isTTY) {
-    for (const a of agents) {
-      const dot = a.available ? "✓" : "✗";
-      process.stdout.write(
-        `${dot} ${a.name.padEnd(20)} ${a.domain.padEnd(12)} ${(a.protocols ?? ["agui"]).join(",")}\n`,
-      );
-    }
+    process.stdout.write(formatAgentListPlain(agents));
     return;
   }
 

@@ -4,7 +4,8 @@
 
 import { Box, Text } from "ink";
 import type React from "react";
-import { statusDot } from "../platform/display.js";
+import { getTerminalTheme } from "../platform/theme.js";
+import { truncateText } from "./picker.js";
 import type { Agent } from "./types.js";
 
 interface AgentListProps {
@@ -12,6 +13,7 @@ interface AgentListProps {
 }
 
 export function AgentList({ agents }: AgentListProps): React.ReactElement {
+  const theme = getTerminalTheme();
   if (agents.length === 0) {
     return (
       <Box>
@@ -22,32 +24,26 @@ export function AgentList({ agents }: AgentListProps): React.ReactElement {
 
   return (
     <Box flexDirection="column">
-      {/* Header row */}
-      <Box>
-        <Text bold color="cyan">
-          {"Name".padEnd(20)}
+      <Box marginBottom={1}>
+        <Text bold color={theme.accent}>
+          Accessible agents
         </Text>
-        <Text bold color="cyan">
-          {"Domain".padEnd(14)}
-        </Text>
-        <Text bold color="cyan">
-          {"Protocols".padEnd(16)}
-        </Text>
-        <Text bold color="cyan">
-          Status
-        </Text>
-      </Box>
-      <Box>
-        <Text dimColor>{"─".repeat(60)}</Text>
+        <Text dimColor> · {agents.length} total</Text>
       </Box>
 
       {agents.map((agent) => (
-        <Box key={agent.name}>
-          <Text>{agent.name.padEnd(20)}</Text>
-          <Text dimColor>{agent.domain.padEnd(14)}</Text>
-          <Text dimColor>{(agent.protocols ?? ["agui"]).join(", ").padEnd(16)}</Text>
-          <Text>{statusDot(agent.available)}</Text>
-          <Text dimColor> {agent.displayName}</Text>
+        <Box key={agent.name} flexDirection="column" marginBottom={1}>
+          <Box>
+            <Text color={agent.available ? theme.success : theme.danger}>
+              {agent.available ? "✓ " : "✗ "}
+            </Text>
+            <Text bold>{truncateText(agent.displayName || agent.name, 64)}</Text>
+          </Box>
+          <Box paddingLeft={2}>
+            <Text dimColor wrap="truncate">
+              {agent.name} · {agent.domain} · {(agent.protocols ?? ["agui"]).join(", ")}
+            </Text>
+          </Box>
         </Box>
       ))}
     </Box>

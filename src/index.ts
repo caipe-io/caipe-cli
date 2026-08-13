@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import pkg from "../package.json";
+import { applyThemeEnvironment } from "./platform/theme.js";
 
 // Suppress color when --no-color or NO_COLOR is set.
 // This is done early so all downstream renderers respect it.
@@ -11,6 +12,7 @@ function applyNoColor(args: string[]): void {
   }
 }
 applyNoColor(process.argv);
+applyThemeEnvironment();
 
 const program = new Command();
 
