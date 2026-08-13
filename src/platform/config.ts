@@ -158,26 +158,13 @@ function ensureConfigDir(): void {
   }
 }
 
-const DEFAULT_SETTINGS: Settings = {
-  server: { url: "http://localhost:3000" },
-  auth: { url: "http://localhost:7080/realms/caipe" },
-};
-
 export function readSettings(): Settings {
   const path = settingsJsonPath();
-  if (!existsSync(path)) return { ...DEFAULT_SETTINGS };
+  if (!existsSync(path)) return {};
   try {
-    const saved = JSON.parse(readFileSync(path, "utf8")) as Settings;
-    // Merge: saved values win; fall back to defaults for any missing key
-    return {
-      server: { ...DEFAULT_SETTINGS.server, ...saved.server },
-      auth: { ...DEFAULT_SETTINGS.auth, ...saved.auth },
-      setup: saved.setup,
-      agent: saved.agent,
-      kb: saved.kb,
-    };
+    return JSON.parse(readFileSync(path, "utf8")) as Settings;
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return {};
   }
 }
 

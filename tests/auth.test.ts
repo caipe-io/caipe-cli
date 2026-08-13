@@ -7,7 +7,10 @@
  */
 
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type TokenSet, clearTokens, loadTokens, storeTokens } from "../src/auth/keychain";
 // ── Import under test ────────────────────────────────────────────────────────
@@ -197,6 +200,25 @@ describe("loginDevice polling behavior", () => {
 
   const SERVER_URL = "https://caipe.test";
   const CLIENT_ID = "caipe-cli";
+  let discoveryConfigDir: string;
+  let previousXdgConfigHome: string | undefined;
+
+  beforeEach(() => {
+    previousXdgConfigHome = process.env.XDG_CONFIG_HOME;
+    discoveryConfigDir = mkdtempSync(join(tmpdir(), "caipe-auth-test-"));
+    process.env.XDG_CONFIG_HOME = discoveryConfigDir;
+  });
+
+  afterEach(() => {
+    if (previousXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = previousXdgConfigHome;
+    rmSync(discoveryConfigDir, { recursive: true, force: true });
+  });
+
+  function discoveryMiss(url: string): Promise<Response> | undefined {
+    if (!url.includes("/.well-known/")) return undefined;
+    return Promise.resolve(new Response("Not Found", { status: 404 }));
+  }
 
   it("authorization_pending × 2 then access_token → success", async () => {
     const { loginDevice } = await import("../src/auth/oauth");
@@ -205,6 +227,8 @@ describe("loginDevice polling behavior", () => {
     const originalFetch = global.fetch;
     global.fetch = vi.fn((url: string) => {
       const u = String(url);
+      const discovery = discoveryMiss(u);
+      if (discovery) return discovery;
       // Device code request
       if (u.includes("/oauth/device/code")) {
         return Promise.resolve(
@@ -263,6 +287,8 @@ describe("loginDevice polling behavior", () => {
     const originalFetch = global.fetch;
     global.fetch = vi.fn((url: string) => {
       const u = String(url);
+      const discovery = discoveryMiss(u);
+      if (discovery) return discovery;
       if (u.includes("/device/code")) {
         return Promise.resolve(
           new Response(
@@ -324,6 +350,8 @@ describe("loginDevice polling behavior", () => {
 
     global.fetch = vi.fn((url: string) => {
       const u = String(url);
+      const discovery = discoveryMiss(u);
+      if (discovery) return discovery;
       if (u.includes("/device/code")) {
         return Promise.resolve(
           new Response(
@@ -379,6 +407,8 @@ describe("loginDevice polling behavior", () => {
 
     global.fetch = vi.fn((url: string) => {
       const u = String(url);
+      const discovery = discoveryMiss(u);
+      if (discovery) return discovery;
       if (u.includes("/device/code")) {
         return Promise.resolve(
           new Response(
@@ -433,6 +463,8 @@ describe("loginDevice polling behavior", () => {
 
     global.fetch = vi.fn((url: string) => {
       const u = String(url);
+      const discovery = discoveryMiss(u);
+      if (discovery) return discovery;
       if (u.includes("/device/code")) {
         return Promise.resolve(
           new Response(JSON.stringify({ error: "unsupported_grant_type" }), {

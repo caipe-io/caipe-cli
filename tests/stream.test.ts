@@ -240,7 +240,7 @@ describe("AguiAdapter", () => {
     }
   });
 
-  it("uses agentName from payload when agent name is 'default'", async () => {
+  it("uses the resolved adapter agent instead of stale payload metadata", async () => {
     let capturedBody = "";
     const originalFetch = global.fetch;
     global.fetch = vi.fn((_url, init) => {
@@ -249,14 +249,15 @@ describe("AguiAdapter", () => {
     }) as unknown as typeof fetch;
 
     try {
-      const customPayload: SendPayload = { ...PAYLOAD, agentName: "my-agent" };
-      const adapter = new AguiAdapter(DEFAULT_AGENT, SERVER_URL, getToken);
+      const customPayload: SendPayload = { ...PAYLOAD, agentName: "stale-agent" };
+      const resolvedAgent = { ...DEFAULT_AGENT, name: "resolved-agent" };
+      const adapter = new AguiAdapter(resolvedAgent, SERVER_URL, getToken);
       for await (const _ of adapter.connect(customPayload)) {
         /* drain */
       }
 
       const body = JSON.parse(capturedBody) as Record<string, unknown>;
-      expect(body.agent_id).toBe("my-agent");
+      expect(body.agent_id).toBe("resolved-agent");
     } finally {
       global.fetch = originalFetch;
     }
