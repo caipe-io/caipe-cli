@@ -48,9 +48,15 @@ bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup
 Then verify the installation with `caipe --version`. If `~/.local/bin` is not
 already on your `PATH`, the setup script prints the exact command to add it.
 
-The npm package and downloadable release binaries are not published yet. Do
-not use `npm install caipe`, `npx github:cnoe-io/caipe-cli`, or `install.sh`
-until the first multi-architecture release is available.
+The installer downloads the latest multi-architecture GitHub release and
+verifies its SHA-256 checksum. Pin a release when reproducibility matters:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh \
+  | CAIPE_VERSION=0.2.22 sh
+```
+
+The npm package is not published yet; use `install.sh` until it is available.
 
 ### Updates
 
