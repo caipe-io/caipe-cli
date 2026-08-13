@@ -20,6 +20,7 @@ DEFAULT_VERSION="latest"
 VERSION="${CAIPE_VERSION:-$DEFAULT_VERSION}"
 TAG=""
 NO_VERIFY="${CAIPE_NO_VERIFY:-0}"
+INSTALL_PENDING="0"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ choose_install_dir() {
   printf '\nWhere should caipe be installed?\n' >/dev/tty
   printf '  1) %s  (recommended, no password)\n' "$DEFAULT_INSTALL_DIR" >/dev/tty
   printf '  2) %s  (no password)\n' "${HOME}/.bin" >/dev/tty
-  printf '  3) /usr/local/bin  (system-wide; may ask for a password)\n' >/dev/tty
+  printf '  3) /usr/local/bin  (system-wide; completed with a separate command)\n' >/dev/tty
   printf 'Select [1]: ' >/dev/tty
 
   choice=""
@@ -201,23 +202,14 @@ LAUNCHER_EOF
 
   if [ ! -d "$INSTALL_DIR" ]; then
     if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
-      info "Creating ${INSTALL_DIR} requires elevated privileges…"
-      if command -v sudo >/dev/null 2>&1; then
-        sudo mkdir -p "$INSTALL_DIR"
-      else
-        die "Cannot create ${INSTALL_DIR}. Set CAIPE_INSTALL_DIR to a writable directory."
-      fi
+      stage_privileged_launcher
+      return
     fi
   fi
 
   if [ ! -w "$INSTALL_DIR" ]; then
-    info "Installing to ${INSTALL_DIR} requires elevated privileges…"
-    if command -v sudo >/dev/null 2>&1; then
-      sudo install -m 755 "${LAUNCHER}" "${DEST}"
-    else
-      die "Cannot write to ${INSTALL_DIR} and sudo is unavailable. " \
-          "Set CAIPE_INSTALL_DIR to a writable directory (e.g. ~/.local/bin)."
-    fi
+    stage_privileged_launcher
+    return
   else
     install -m 755 "${LAUNCHER}" "${DEST}"
   fi
@@ -225,9 +217,26 @@ LAUNCHER_EOF
   ok "Installed caipe launcher to ${DEST}"
 }
 
+stage_privileged_launcher() {
+  STAGED_LAUNCHER="${SHARE}/caipe-launcher"
+  install -m 755 "${LAUNCHER}" "${STAGED_LAUNCHER}"
+  INSTALL_PENDING="1"
+
+  printf '\n\033[33m  ! The web installer never runs sudo.\033[0m\n'
+  printf '    Review the staged launcher:\n'
+  printf '      less "%s"\n\n' "$STAGED_LAUNCHER"
+  printf '    Then complete the system-wide install yourself:\n'
+  printf '      sudo mkdir -p "%s"\n' "$INSTALL_DIR"
+  printf '      sudo install -m 755 "%s" "%s"\n\n' "$STAGED_LAUNCHER" "$DEST"
+}
+
 # ── verify installation ───────────────────────────────────────────────────────
 
 verify_install() {
+  if [ "$INSTALL_PENDING" = "1" ]; then
+    return
+  fi
+
   if ! command -v caipe >/dev/null 2>&1; then
     printf '\n\033[33m  ! caipe is not in your PATH.\033[0m\n'
     printf '    Add %s to your PATH:\n' "$INSTALL_DIR"
@@ -258,6 +267,12 @@ main() {
   download_binary
   install_binary
   verify_install
+
+  if [ "$INSTALL_PENDING" = "1" ]; then
+    printf '\n\033[32mDownload and verification complete.\033[0m\n'
+    printf 'Run the reviewed system-install commands shown above to finish.\n\n'
+    return
+  fi
 
   printf '\n\033[32mInstallation complete!\033[0m\n'
   printf 'Get started:\n'

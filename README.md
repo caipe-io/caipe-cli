@@ -12,7 +12,8 @@ curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh |
 
 The installer downloads the latest verified release and asks where to place the
 `caipe` launcher. Press Enter for `~/.local/bin` (recommended, no password),
-choose `~/.bin`, or explicitly select `/usr/local/bin` for a system-wide install.
+choose `~/.bin`, or stage a launcher for an explicit system-wide install. The
+web-fetched script never invokes `sudo` or reads a password.
 
 **Point at your CAIPE deployment, sign in, chat:**
 
@@ -50,7 +51,7 @@ The installer asks you to choose:
 
 1. `~/.local/bin` — recommended, no password
 2. `~/.bin` — user-owned alternative, no password
-3. `/usr/local/bin` — system-wide and may require `sudo`
+3. `/usr/local/bin` — stages the launcher and prints separate review/install commands
 
 Press Enter to accept option 1. In a non-interactive environment, option 1 is
 selected automatically. Then verify with `caipe --version`. If the selected
@@ -65,13 +66,17 @@ curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh \
   | CAIPE_INSTALL_DIR="$HOME/.bin" sh
 ```
 
-Choose a system-wide directory explicitly. The installer asks for `sudo` only
-when that directory is not writable:
+Choose a system-wide directory explicitly:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh \
   | CAIPE_INSTALL_DIR=/usr/local/bin sh
 ```
+
+The web installer downloads and verifies the binary, stages the launcher under
+`~/.local/share/caipe`, and stops. It never invokes `sudo`. Review the staged
+launcher, then separately run the exact `sudo mkdir` and `sudo install` commands
+it prints.
 
 In every case, `CAIPE_INSTALL_DIR` controls only the small launcher on `PATH`;
 the platform binary is stored under `~/.local/share/caipe` by default.

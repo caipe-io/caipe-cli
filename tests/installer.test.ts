@@ -13,6 +13,12 @@ describe("release installer", () => {
     expect(installer).not.toContain("CAIPE_INSTALL_DIR:-/usr/local/bin");
   });
 
+  it("never elevates privileges inside the web-fetched script", () => {
+    expect(installer).toContain("The web installer never runs sudo.");
+    expect(installer).not.toContain("command -v sudo");
+    expect(installer).not.toMatch(/^\s*sudo\s/m);
+  });
+
   it("uses the API-free latest-release redirect by default", () => {
     expect(installer).toContain('DEFAULT_VERSION="latest"');
     expect(installer).toContain('BASE_URL="https://github.com/${REPO}/releases/latest/download"');
