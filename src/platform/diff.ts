@@ -55,7 +55,7 @@ export function renderDiff(oldText: string, newText: string, label: string): str
 
 /** Heuristic: unified diff hunk (---/+++/@@ or many +/- lines). */
 export function isUnifiedDiffText(text: string): boolean {
-  const lines = text.split("\n");
+  const lines = text.replace(/\x1b\[[0-9;]*m/g, "").split("\n");
   const hasHeader =
     lines.some((l) => l.startsWith("--- ")) && lines.some((l) => l.startsWith("+++ "));
   const hasHunk = lines.some((l) => l.startsWith("@@"));

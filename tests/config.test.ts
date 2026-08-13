@@ -1,7 +1,7 @@
 /**
  * Unit tests for platform/config.ts:
  *   - getAuthUrl() priority order (flag > CAIPE_AUTH_URL > settings.auth.url > settings.server.url > throws)
- *   - getServerUrl() deprecated alias behaviour
+ *   - getServerUrl() priority order
  *   - ServerNotConfigured error
  *   - settings read/write round-trip
  *   - HTTPS validation
@@ -143,7 +143,7 @@ describe("getAuthUrl", () => {
 
 // ── getServerUrl deprecated alias ─────────────────────────────────────────────
 
-describe("getServerUrl (deprecated alias for getAuthUrl)", () => {
+describe("getServerUrl", () => {
   it("throws ServerNotConfigured when nothing is set", () => {
     expect(() => getServerUrl()).toThrow(ServerNotConfigured);
   });
@@ -153,10 +153,10 @@ describe("getServerUrl (deprecated alias for getAuthUrl)", () => {
     expect(url).toBe("https://flag.example.com");
   });
 
-  it("reads CAIPE_AUTH_URL env var (not CAIPE_SERVER_URL)", () => {
-    process.env.CAIPE_AUTH_URL = "https://auth-env.example.com";
+  it("reads CAIPE_SERVER_URL env var", () => {
+    process.env.CAIPE_SERVER_URL = "https://server-env.example.com";
     const url = getServerUrl();
-    expect(url).toBe("https://auth-env.example.com");
+    expect(url).toBe("https://server-env.example.com");
   });
 
   it("falls back to settings.server.url for backward compat", () => {
@@ -180,7 +180,7 @@ describe("authEndpoints", () => {
     const ep = authEndpoints("https://caipe.example.com");
     expect(ep.deviceCode).toBe("https://caipe.example.com/oauth/device/code");
     expect(ep.token).toBe("https://caipe.example.com/oauth/token");
-    expect(ep.agents).toBe("https://caipe.example.com/api/v1/agents");
+    expect(ep.agents).toBe("https://caipe.example.com/api/user/accessible-agents");
     expect(ep.agentCard).toBe("https://caipe.example.com/.well-known/agent.json");
     expect(ep.streamStart).toBe("https://caipe.example.com/api/v1/chat/stream/start");
   });

@@ -15,10 +15,29 @@ import {
 import type { Agent } from "./types.js";
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const PAGE_SIZE = 100;
+const MAX_PAGES = 1_000;
 
 interface CachedAgents {
   agents: Agent[];
   cachedAt: string;
+  serverUrl: string;
+}
+
+interface AgentPickerEntry {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface AgentPickerResponse {
+  success: boolean;
+  data?: {
+    agents: AgentPickerEntry[];
+    total?: number;
+    page?: number;
+    page_size?: number;
+  };
 }
 
 export interface ValidationResult {
@@ -38,7 +57,7 @@ export async function fetchAgents(
   serverUrl: string,
   getToken: () => Promise<string>,
 ): Promise<Agent[]> {
-  const cached = readCache();
+  const cached = readCache(serverUrl);
   if (cached && Date.now() - Date.parse(cached.cachedAt) < CACHE_TTL_MS) {
     return cached.agents;
   }
@@ -46,21 +65,7 @@ export async function fetchAgents(
   try {
     const ep = authEndpoints(serverUrl);
     const token = await getToken();
-    const res = await fetch(ep.agents, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    // Response: { success: true, data: { agents: AgentPickerEntry[], total, page, page_size } }
-    const body = (await res.json()) as {
-      success: boolean;
-      data?: { agents: Array<{ id: string; name: string; description: string }> };
-    };
-    const pickerEntries = body.data?.agents ?? [];
+    const pickerEntries = await fetchAllAgentPages(ep.agents, token);
     const agents: Agent[] = pickerEntries.map((e) => ({
       name: e.id,
       displayName: e.name || e.id,
@@ -70,7 +75,7 @@ export async function fetchAgents(
       available: true,
       domain: "general",
     }));
-    writeCache(agents);
+    writeCache(serverUrl, agents);
     return agents;
   } catch (err) {
     if (cached) {
@@ -81,6 +86,44 @@ export async function fetchAgents(
     }
     throw new Error(`Agents registry unavailable: ${String(err)}`);
   }
+}
+
+async function fetchAllAgentPages(endpoint: string, token: string): Promise<AgentPickerEntry[]> {
+  const entries: AgentPickerEntry[] = [];
+
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const url = new URL(endpoint);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("page_size", String(PAGE_SIZE));
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const body = (await res.json()) as AgentPickerResponse;
+    const pageEntries = body.data?.agents ?? [];
+    const total = body.data?.total;
+    entries.push(...pageEntries);
+
+    // Older servers may omit pagination metadata. In that case, preserve the
+    // legacy single-page behavior instead of issuing speculative requests.
+    if (typeof total !== "number" || entries.length >= total) {
+      return entries;
+    }
+
+    if (pageEntries.length === 0) {
+      throw new Error(
+        `Agents registry pagination stopped after ${entries.length} of ${total} agents`,
+      );
+    }
+  }
+
+  throw new Error(`Agents registry exceeded ${MAX_PAGES} pages`);
 }
 
 /**
@@ -181,19 +224,31 @@ export function validateProtocol(agent: Agent): ValidationResult {
 // Cache helpers
 // ---------------------------------------------------------------------------
 
-function readCache(): CachedAgents | null {
+function readCache(serverUrl: string): CachedAgents | null {
   const path = agentsCachePath();
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as CachedAgents;
+    const cached = JSON.parse(readFileSync(path, "utf8")) as Partial<CachedAgents>;
+    if (
+      cached.serverUrl !== serverUrl ||
+      typeof cached.cachedAt !== "string" ||
+      !Array.isArray(cached.agents)
+    ) {
+      return null;
+    }
+    return cached as CachedAgents;
   } catch {
     return null;
   }
 }
 
-function writeCache(agents: Agent[]): void {
+function writeCache(serverUrl: string, agents: Agent[]): void {
   const dir = globalConfigDir();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const cached: CachedAgents = { agents, cachedAt: new Date().toISOString() };
+  const cached: CachedAgents = {
+    agents,
+    cachedAt: new Date().toISOString(),
+    serverUrl,
+  };
   writeFileSync(agentsCachePath(), `${JSON.stringify(cached, null, 2)}\n`, "utf8");
 }
