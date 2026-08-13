@@ -51,7 +51,7 @@ export interface Settings {
     url?: string;
   };
   updates?: {
-    /** Daily CLI update behavior. Env override: CAIPE_UPDATE_MODE. */
+    /** Daily CLI update behavior. Default: auto. Env override: CAIPE_UPDATE_MODE. */
     mode?: UpdateMode;
   };
 }
@@ -274,11 +274,11 @@ export function getConfiguredDefaultAgent(): string | undefined {
   return undefined;
 }
 
-/** Resolve update behavior. Priority: CAIPE_UPDATE_MODE → settings → notify. */
+/** Resolve update behavior. Priority: CAIPE_UPDATE_MODE → settings → auto. */
 export function getUpdateMode(): UpdateMode {
   const env = process.env.CAIPE_UPDATE_MODE?.trim().toLowerCase();
   if (env === "notify" || env === "auto" || env === "off") return env;
-  return readSettings().updates?.mode ?? "notify";
+  return readSettings().updates?.mode ?? "auto";
 }
 
 /**

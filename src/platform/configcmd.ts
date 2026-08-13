@@ -37,7 +37,7 @@ const SUPPORTED_KEYS: SupportedKey[] = [
 ];
 
 const CREDENTIAL_STORAGE_VALUES = ["encrypted-file", "keychain"] as const;
-const UPDATE_MODE_VALUES = ["notify", "auto", "off"] as const;
+const UPDATE_MODE_VALUES = ["auto", "notify", "off"] as const;
 
 function assertSupportedKey(key: string): asserts key is SupportedKey {
   if (!SUPPORTED_KEYS.includes(key as SupportedKey)) {
@@ -228,7 +228,7 @@ export async function runConfigGet(key: string, opts: { json?: boolean }): Promi
       value = envVal;
       source = "CAIPE_UPDATE_MODE env var";
     } else {
-      value = settings.updates?.mode ?? "notify";
+      value = settings.updates?.mode ?? "auto";
       source = settings.updates?.mode ? "settings.json" : "default";
     }
   }

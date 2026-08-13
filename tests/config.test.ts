@@ -96,6 +96,10 @@ describe("settings read/write", () => {
     expect(s.updates?.mode).toBe("auto");
   });
 
+  it("defaults updates.mode to auto", () => {
+    expect(getUpdateMode()).toBe("auto");
+  });
+
   it("lets CAIPE_UPDATE_MODE override settings", () => {
     writeSettings({ updates: { mode: "notify" } });
     process.env.CAIPE_UPDATE_MODE = "off";

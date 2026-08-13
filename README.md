@@ -54,8 +54,9 @@ until the first multi-architecture release is available.
 
 ### Updates
 
-Interactive chat checks GitHub Releases at most once every 24 hours and prints
-one notification when a newer verified release is available. Update manually:
+Interactive chat checks GitHub Releases at most once every 24 hours. Known
+binary installs update automatically; other install types receive one
+notification per release. Update manually:
 
 ```bash
 caipe update --check    # inspect only
@@ -64,10 +65,11 @@ caipe update            # download, verify, smoke-test, and install
 
 Downloaded binaries must match `caipe-checksums.txt` and pass `--version`
 before atomically replacing the installed binary. npm-managed installations
-delegate an explicit update to npm. Automatic binary installation is opt-in:
+delegate an explicit update to npm. Verified binary updates install
+automatically by default:
 
 ```bash
-caipe config set updates.mode auto    # notify (default), auto, or off
+caipe config set updates.mode notify  # auto (default), notify, or off
 ```
 
 Source or unknown launchers fall back to a notification and an actionable
@@ -188,7 +190,7 @@ caipe config set auth.idp-hint duo-sso
 | `CAIPE_SERVER_URL` | BFF base URL (agents, chat stream) |
 | `CAIPE_AUTH_URL` | OAuth / discovery base (login) |
 | `CAIPE_DEFAULT_AGENT` | Default dynamic agent id (overrides `agent.default` in settings) |
-| `CAIPE_UPDATE_MODE` | CLI update behavior: `notify` (default), `auto`, or `off` |
+| `CAIPE_UPDATE_MODE` | CLI update behavior: `auto` (default), `notify`, or `off` |
 | `CAIPE_NO_UPDATE_CHECK` | Set to `1` to skip the startup update check |
 | `CAIPE_AUTH_REALM` | Keycloak realm name for IdP heuristics (default `caipe`) |
 | `CAIPE_PLAIN_TERMINAL` | Set to `1` to disable rich markdown, alt screen, and inline images |
@@ -293,7 +295,7 @@ Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENA
 | `agent.default` | Default dynamic agent id for `caipe chat` when `--agent` is omitted |
 | `auth.idp-hint` | Skip Keycloak login chooser (`kc_idp_hint`) |
 | `kb.url` | Knowledge Base RAG REST API base URL |
-| `updates.mode` | Daily CLI update behavior: `notify`, `auto`, or `off` |
+| `updates.mode` | Daily CLI update behavior: `auto` (default), `notify`, or `off` |
 | `auth.apiKey` | Static API key (headless alternative) |
 | `auth.credential-storage` | `encrypted-file` (default) or `keychain` |
 

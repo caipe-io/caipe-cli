@@ -1393,7 +1393,7 @@ export function Repl({
               `- **auth.url** = \`${s.auth?.url ?? "(not set)"}\``,
               `- **auth.idp-hint** = \`${s.auth?.idpHint ?? "(not set)"}\``,
               `- **auth.credential-storage** = \`${s.auth?.credentialStorage ?? "encrypted-file"}\``,
-              `- **updates.mode** = \`${s.updates?.mode ?? "notify"}\``,
+              `- **updates.mode** = \`${s.updates?.mode ?? "auto"}\``,
               "\nTo edit, set **EDITOR** or run `caipe config set <key> <value>`",
             ];
             pushAssistant(lines.join("\n"));
