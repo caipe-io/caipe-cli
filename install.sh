@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
 #
 # Options (environment variables):
-#   CAIPE_INSTALL_DIR   — override install directory (default: /usr/local/bin)
+#   CAIPE_INSTALL_DIR   — launcher directory (default: $HOME/.local/bin)
 #   CAIPE_VERSION       — pin a specific version (default: latest)
 #   CAIPE_NO_VERIFY     — set to 1 to skip checksum verification (not recommended)
 #
@@ -14,7 +14,7 @@
 set -e
 
 REPO="cnoe-io/caipe-cli"
-INSTALL_DIR="${CAIPE_INSTALL_DIR:-/usr/local/bin}"
+INSTALL_DIR="${CAIPE_INSTALL_DIR:-${HOME}/.local/bin}"
 DEFAULT_VERSION="latest"
 VERSION="${CAIPE_VERSION:-$DEFAULT_VERSION}"
 TAG=""
@@ -165,6 +165,17 @@ process.exit(r.status ?? (r.signal ? 128 : 1));
 LAUNCHER_EOF
   chmod +x "${LAUNCHER}"
 
+  if [ ! -d "$INSTALL_DIR" ]; then
+    if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+      info "Creating ${INSTALL_DIR} requires elevated privileges…"
+      if command -v sudo >/dev/null 2>&1; then
+        sudo mkdir -p "$INSTALL_DIR"
+      else
+        die "Cannot create ${INSTALL_DIR}. Set CAIPE_INSTALL_DIR to a writable directory."
+      fi
+    fi
+  fi
+
   if [ ! -w "$INSTALL_DIR" ]; then
     info "Installing to ${INSTALL_DIR} requires elevated privileges…"
     if command -v sudo >/dev/null 2>&1; then
@@ -208,6 +219,7 @@ main() {
 
   detect_platform
   resolve_version
+  info "Install directory: ${INSTALL_DIR}"
   download_binary
   install_binary
   verify_install

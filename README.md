@@ -7,11 +7,12 @@ Terminal client for [CAIPE](https://github.com/cnoe-io/ai-platform-engineering):
 **Install CAIPE CLI:**
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup-caipe-cli.sh)
+curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
 ```
 
-The setup script installs Bun when needed, builds CAIPE CLI from the latest
-`main`, and adds `caipe` to `~/.local/bin`.
+The installer downloads the latest verified release to your home directory and
+adds the `caipe` launcher to `~/.local/bin`. It does not need `sudo` unless you
+explicitly select a system directory.
 
 **Point at your CAIPE deployment, sign in, chat:**
 
@@ -32,7 +33,7 @@ Other host (UI serves OAuth on the same URL): set only `server.url`, then `caipe
 ---
 
 - macOS or Linux on arm64 or x64
-- `curl` and `git` (Bun is installed by the setup script when needed)
+- `curl` and Node.js 20 or newer
 - A reachable CAIPE deployment (API + OAuth)
 
 Optional: **keytar** only if you set `auth.credential-storage` to `keychain`.
@@ -42,11 +43,29 @@ Optional: **keytar** only if you set `auth.credential-storage` to `keychain`.
 ## Install
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup-caipe-cli.sh)
+curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
 ```
 
 Then verify the installation with `caipe --version`. If `~/.local/bin` is not
-already on your `PATH`, the setup script prints the exact command to add it.
+already on your `PATH`, the installer prints the exact command to add it.
+
+Choose another user-owned directory without a password:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh \
+  | CAIPE_INSTALL_DIR="$HOME/.bin" sh
+```
+
+Choose a system-wide directory explicitly. The installer asks for `sudo` only
+when that directory is not writable:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh \
+  | CAIPE_INSTALL_DIR=/usr/local/bin sh
+```
+
+In every case, `CAIPE_INSTALL_DIR` controls only the small launcher on `PATH`;
+the platform binary is stored under `~/.local/share/caipe` by default.
 
 The installer downloads the latest multi-architecture GitHub release and
 verifies its SHA-256 checksum. Pin a release when reproducibility matters:
