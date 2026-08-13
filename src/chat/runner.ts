@@ -17,7 +17,8 @@ import {
   getAuthUrl,
   getServerUrl,
 } from "../platform/config.js";
-import { printLogo } from "../platform/display.js";
+import { printSessionBanner } from "../platform/display.js";
+import { findRepoRoot } from "../platform/git.js";
 import { getTerminalCapabilities } from "../platform/markdown.js";
 import { runSetupWizard } from "../platform/setup.js";
 import {
@@ -96,8 +97,6 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
     enterAlternateScreen();
   }
 
-  printLogo();
-
   // Stream endpoint: caipe-ui BFF (may differ from authUrl when KC is separate)
   let serverUrl: string;
   try {
@@ -107,6 +106,7 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
   }
 
   const getToken = () => getValidToken(authUrl);
+  const cwd = process.cwd();
 
   let resolvedAgent: Agent;
   try {
@@ -116,9 +116,17 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
     process.exit(3);
   }
   const agentName = resolvedAgent.name;
+  const repoRoot = await findRepoRoot(cwd);
+
+  printSessionBanner({
+    agentName,
+    agentDisplayName: resolvedAgent.displayName,
+    serverUrl,
+    workingDir: repoRoot ?? cwd,
+    resumed: Boolean(opts.resume),
+  });
 
   // Gather context (inject agents + skills for richer system prompt)
-  const cwd = process.cwd();
   const systemContext = await buildSystemContext(cwd, opts.noContext ?? false, {
     serverUrl,
     getToken,
@@ -132,13 +140,16 @@ export async function runChat(opts: ChatOpts, globalOpts: GlobalOpts): Promise<v
     if (!existing) {
       process.stderr.write(`[WARN] Session ${opts.resume} not found; starting a new session.\n`);
       session = createSession({ agentName, workingDir: cwd });
+      session.repoRoot = repoRoot;
       session.memoryContext = systemContext;
     } else {
       session = existing;
       session.workingDir = cwd;
+      session.repoRoot = repoRoot;
     }
   } else {
     session = createSession({ agentName, workingDir: cwd });
+    session.repoRoot = repoRoot;
     session.memoryContext = systemContext;
   }
 

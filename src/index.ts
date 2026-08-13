@@ -16,8 +16,10 @@ const program = new Command();
 
 program
   .name("caipe")
-  .description("Custom Agents, workflows and more... caipe.io")
+  .description("Chat with CAIPE agents from your terminal")
   .version(pkg.version, "-v, --version", "Print version and exit")
+  .showSuggestionAfterError(true)
+  .showHelpAfterError("Run `caipe --help` to see available commands.")
   .option(
     "--agent <name>",
     "Dynamic agent id from `caipe agents list` (default: agent.default setting, else first accessible)",
@@ -26,6 +28,18 @@ program
   .option("--url <url>", "Override server.url from settings.json for this invocation only")
   .option("--no-color", "Disable ANSI color output")
   .option("--json", "Machine-readable JSON output (non-interactive commands only)");
+
+program.addHelpText(
+  "after",
+  [
+    "",
+    "Examples:",
+    "  $ caipe                         Start an interactive chat",
+    "  $ caipe chat --agent primary    Chat with a specific agent",
+    "  $ caipe doctor                  Diagnose setup and connectivity",
+    "  $ caipe agents list             List accessible agents",
+  ].join("\n"),
+);
 
 // ---------------------------------------------------------------------------
 // caipe chat
@@ -399,6 +413,19 @@ program
   .action(async (opts: Record<string, unknown>) => {
     const { runCommit } = await import("./commit/commands.js");
     await runCommit(opts);
+  });
+
+// ---------------------------------------------------------------------------
+// caipe doctor
+// ---------------------------------------------------------------------------
+program
+  .command("doctor")
+  .description("Check configuration, authentication, and agent connectivity")
+  .option("--json", "Output the diagnostic report as JSON")
+  .action(async (opts: Record<string, unknown>) => {
+    const { runDoctor } = await import("./platform/doctor.js");
+    const ok = await runDoctor({ json: opts.json === true || program.opts().json === true });
+    if (!ok) process.exitCode = 1;
   });
 
 // ---------------------------------------------------------------------------

@@ -1,47 +1,64 @@
 /**
- * Display utilities: ASCII logo, spinners, and progress indicators.
+ * Display utilities: session banner, spinners, and progress indicators.
  *
  * All output respects NO_COLOR.  The logo is printed once at interactive
  * session startup.  Spinners are React/Ink components used in the REPL.
  */
 
+import { homedir } from "node:os";
 import { Box, Text } from "ink";
 import React from "react";
 
 const NO_COLOR = Boolean(process.env.NO_COLOR);
 
 // ---------------------------------------------------------------------------
-// ASCII logo
+// Session banner
 // ---------------------------------------------------------------------------
 
-const LOGO_LINES = [
-  "  ██████╗ █████╗ ██╗██████╗ ███████╗",
-  " ██╔════╝██╔══██╗██║██╔══██╗██╔════╝",
-  " ██║     ███████║██║██████╔╝█████╗  ",
-  " ██║     ██╔══██║██║██╔═══╝ ██╔══╝  ",
-  " ╚██████╗██║  ██║██║██║     ███████╗",
-  "  ╚═════╝╚═╝  ╚═╝╚═╝╚═╝     ╚══════╝",
-];
-
-const TAGLINE = "Custom Agents, workflows and more... caipe.io";
 const CYAN = NO_COLOR ? "" : "\x1b[96m";
+const DIM = NO_COLOR ? "" : "\x1b[2m";
 const RESET = NO_COLOR ? "" : "\x1b[0m";
 
-/**
- * Print the CAIPE ASCII logo to stdout.
- * Called once when an interactive chat session starts.
- */
-export function printLogo(): void {
-  if (NO_COLOR) {
-    process.stdout.write("CAIPE\n");
-    process.stdout.write(`${TAGLINE}\n\n`);
-    return;
+export interface SessionBannerInfo {
+  agentName: string;
+  agentDisplayName: string;
+  serverUrl: string;
+  workingDir: string;
+  resumed?: boolean;
+}
+
+function compactHome(path: string): string {
+  const home = homedir();
+  return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
+}
+
+function serverHost(serverUrl: string): string {
+  try {
+    return new URL(serverUrl).host;
+  } catch {
+    return serverUrl;
   }
-  process.stdout.write("\n");
-  for (const line of LOGO_LINES) {
-    process.stdout.write(`${CYAN}${line}${RESET}\n`);
-  }
-  process.stdout.write(`\n  ${TAGLINE}\n\n`);
+}
+
+/** Compact startup context, inspired by modern coding-agent CLIs. */
+export function formatSessionBanner(info: SessionBannerInfo): string {
+  const displayAgent =
+    info.agentDisplayName === info.agentName
+      ? info.agentName
+      : `${info.agentDisplayName} (${info.agentName})`;
+  const resume = info.resumed ? " · resumed" : "";
+  return [
+    `${CYAN}CAIPE${RESET}${resume}`,
+    `  ${DIM}agent${RESET}     ${displayAgent}`,
+    `  ${DIM}workspace${RESET} ${compactHome(info.workingDir)}`,
+    `  ${DIM}server${RESET}    ${serverHost(info.serverUrl)}`,
+    `  ${DIM}hint${RESET}      / commands · Ctrl+O agents`,
+    "",
+  ].join("\n");
+}
+
+export function printSessionBanner(info: SessionBannerInfo): void {
+  process.stdout.write(formatSessionBanner(info));
 }
 
 // ---------------------------------------------------------------------------

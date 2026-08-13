@@ -64,6 +64,7 @@ import { parseInput, pipeThrough, runShellCommand } from "./pipes.js";
 import { extractRecap } from "./recap.js";
 import { type ShellApprovalRequest, isShellHitlEnabled } from "./shell-hitl.js";
 import { FOOTER_HINT_IDLE, SHORTCUT_AGENT_PICKER, SHORTCUT_SLASH_COMMANDS } from "./shortcuts.js";
+import { formatSessionStatus } from "./status.js";
 import { createAdapter } from "./stream.js";
 import type { StreamAdapter } from "./stream.js";
 import { commandFromToolArgsBuffer } from "./tool-detail.js";
@@ -134,6 +135,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { name: "/compact", description: "Summarize and compress history" },
   { name: "/login", description: "Re-authenticate (opens browser)" },
   { name: "/settings", description: "View or edit CLI configuration" },
+  { name: "/status", description: "Show session, agent, and server context" },
   { name: "/exit", description: "End session and save history" },
   { name: "/skills", description: "Show skills loaded in supervisor" },
   { name: "/agents", description: "Switch to a different agent" },
@@ -688,6 +690,14 @@ export function Repl({
     [pushStatic],
   );
 
+  /** Local CLI output that should not be sent back to the agent as chat history. */
+  const pushSystemPlain = useCallback(
+    (text: string) => {
+      pushStatic({ kind: "assistant-plain", text });
+    },
+    [pushStatic],
+  );
+
   // Restore saved transcript when resuming a session (`caipe chat --resume <id>`).
   const applySessionTranscript = useCallback((loaded: ChatSession) => {
     const items: StaticItem[] = [];
@@ -1228,6 +1238,22 @@ export function Repl({
           setPickerIndex(0);
           break;
 
+        case "/status": {
+          const active = activeSessionRef.current;
+          pushSystemPlain(
+            formatSessionStatus({
+              agent: currentAgent,
+              serverUrl,
+              workingDir: active.repoRoot ?? active.workingDir,
+              sessionId: active.sessionId,
+              conversationId: conversationIdRef.current,
+              messageCount: historyRef.current.length,
+              approxTokens: tokenCountRef.current,
+            }),
+          );
+          break;
+        }
+
         case "/skills":
           setStatusText("Loading skills from supervisor…");
           try {
@@ -1408,8 +1434,10 @@ export function Repl({
       handleExit,
       pushAssistant,
       pushAssistantPlain,
+      pushSystemPlain,
       streaming,
       serverUrl,
+      currentAgent,
       switchToAgent,
       openAgentPicker,
       openSessionPicker,
