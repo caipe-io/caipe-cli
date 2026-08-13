@@ -18,6 +18,8 @@ import { join } from "node:path";
 // Types
 // ---------------------------------------------------------------------------
 
+export type UpdateMode = "notify" | "auto" | "off";
+
 export interface Settings {
   server?: {
     /** Legacy field — kept for backward compat reading old settings.json */
@@ -47,6 +49,10 @@ export interface Settings {
   kb?: {
     /** Knowledge Base RAG REST API base URL (CAIPE_KB_URL overrides) */
     url?: string;
+  };
+  updates?: {
+    /** Daily CLI update behavior. Env override: CAIPE_UPDATE_MODE. */
+    mode?: UpdateMode;
   };
 }
 
@@ -266,6 +272,13 @@ export function getConfiguredDefaultAgent(): string | undefined {
   const fromSettings = readSettings().agent?.default;
   if (fromSettings && fromSettings.trim() !== "") return fromSettings.trim();
   return undefined;
+}
+
+/** Resolve update behavior. Priority: CAIPE_UPDATE_MODE → settings → notify. */
+export function getUpdateMode(): UpdateMode {
+  const env = process.env.CAIPE_UPDATE_MODE?.trim().toLowerCase();
+  if (env === "notify" || env === "auto" || env === "off") return env;
+  return readSettings().updates?.mode ?? "notify";
 }
 
 /**

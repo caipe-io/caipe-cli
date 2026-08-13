@@ -29,6 +29,17 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Verify package version matches tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#caipe/}"
+          release_version="${tag#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          test "$package_version" = "$release_version" || {
+            echo "package.json version $package_version does not match tag $release_version" >&2
+            exit 1
+          }
+
       - name: Type check
         run: bun tsc --noEmit
 

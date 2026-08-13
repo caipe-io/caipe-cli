@@ -14,6 +14,15 @@ applyNoColor(process.argv);
 
 const program = new Command();
 
+async function runStartupUpdateCheck(): Promise<void> {
+  try {
+    const { maybeRunStartupUpdate } = await import("./update/startup.js");
+    await maybeRunStartupUpdate(pkg.version);
+  } catch {
+    // Update checks must never prevent the requested CLI command from running.
+  }
+}
+
 program
   .name("caipe")
   .description("Custom Agents, workflows and more... caipe.io")
@@ -46,6 +55,7 @@ const chatCmd = program
     "Multi-turn headless mode; reads newline-delimited turns from stdin",
   )
   .action(async (opts: Record<string, unknown>) => {
+    await runStartupUpdateCheck();
     const { runChat } = await import("./chat/runner.js");
     await runChat(opts, program.opts());
   });
@@ -123,6 +133,27 @@ configCmd
   .action(async (key: string, value: string) => {
     const { runConfigSet } = await import("./platform/configcmd.js");
     await runConfigSet(key, value);
+  });
+
+// ---------------------------------------------------------------------------
+// caipe update
+// ---------------------------------------------------------------------------
+program
+  .command("update")
+  .description("Check for and install a verified caipe CLI release")
+  .option("--check", "Check for an update without installing it")
+  .option("--force", "Reinstall the latest release even when versions match")
+  .option("--json", "Output JSON")
+  .action(async (opts: Record<string, unknown>) => {
+    const { runUpdate } = await import("./update/commands.js");
+    await runUpdate(
+      {
+        check: opts.check === true,
+        force: opts.force === true,
+        json: opts.json === true || program.opts().json === true,
+      },
+      pkg.version,
+    );
   });
 
 configCmd
@@ -405,6 +436,7 @@ program
 // Default action: open chat REPL when invoked with no subcommand
 // ---------------------------------------------------------------------------
 program.action(async () => {
+  await runStartupUpdateCheck();
   const { runChat } = await import("./chat/runner.js");
   await runChat({}, program.opts());
 });

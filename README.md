@@ -52,6 +52,27 @@ The npm package and downloadable release binaries are not published yet. Do
 not use `npm install caipe`, `npx github:cnoe-io/caipe-cli`, or `install.sh`
 until the first multi-architecture release is available.
 
+### Updates
+
+Interactive chat checks GitHub Releases at most once every 24 hours and prints
+one notification when a newer verified release is available. Update manually:
+
+```bash
+caipe update --check    # inspect only
+caipe update            # download, verify, smoke-test, and install
+```
+
+Downloaded binaries must match `caipe-checksums.txt` and pass `--version`
+before atomically replacing the installed binary. npm-managed installations
+delegate an explicit update to npm. Automatic binary installation is opt-in:
+
+```bash
+caipe config set updates.mode auto    # notify (default), auto, or off
+```
+
+Source or unknown launchers fall back to a notification and an actionable
+manual update command. Set `CAIPE_NO_UPDATE_CHECK=1` for a one-off invocation.
+
 ---
 
 ## Developer guide
@@ -167,6 +188,8 @@ caipe config set auth.idp-hint duo-sso
 | `CAIPE_SERVER_URL` | BFF base URL (agents, chat stream) |
 | `CAIPE_AUTH_URL` | OAuth / discovery base (login) |
 | `CAIPE_DEFAULT_AGENT` | Default dynamic agent id (overrides `agent.default` in settings) |
+| `CAIPE_UPDATE_MODE` | CLI update behavior: `notify` (default), `auto`, or `off` |
+| `CAIPE_NO_UPDATE_CHECK` | Set to `1` to skip the startup update check |
 | `CAIPE_AUTH_REALM` | Keycloak realm name for IdP heuristics (default `caipe`) |
 | `CAIPE_PLAIN_TERMINAL` | Set to `1` to disable rich markdown, alt screen, and inline images |
 | `CAIPE_NO_ALT_SCREEN` | Set to `1` to keep chat in the normal scrollback buffer |
@@ -270,10 +293,11 @@ Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENA
 | `agent.default` | Default dynamic agent id for `caipe chat` when `--agent` is omitted |
 | `auth.idp-hint` | Skip Keycloak login chooser (`kc_idp_hint`) |
 | `kb.url` | Knowledge Base RAG REST API base URL |
-
-**Rich terminal output (interactive chat):** Markdown is rendered with **react-markdown** + **remark-gfm** as native Ink components (no ANSI markdown strings). Diffs use Ink colors. Block streaming caches completed sections in `<Static>`; the active tail updates in place. Tool runs show in the footer. Chat uses the **alternate screen** unless `CAIPE_NO_ALT_SCREEN=1` or `CAIPE_PLAIN_TERMINAL=1`. Legacy plain streaming: `CAIPE_STREAM_PLAIN=1`.
+| `updates.mode` | Daily CLI update behavior: `notify`, `auto`, or `off` |
 | `auth.apiKey` | Static API key (headless alternative) |
 | `auth.credential-storage` | `encrypted-file` (default) or `keychain` |
+
+**Rich terminal output (interactive chat):** Markdown is rendered with **react-markdown** + **remark-gfm** as native Ink components (no ANSI markdown strings). Diffs use Ink colors. Block streaming caches completed sections in `<Static>`; the active tail updates in place. Tool runs show in the footer. Chat uses the **alternate screen** unless `CAIPE_NO_ALT_SCREEN=1` or `CAIPE_PLAIN_TERMINAL=1`. Legacy plain streaming: `CAIPE_STREAM_PLAIN=1`.
 
 **Default credentials:** encrypted file at `~/.config/caipe/credentials.enc` (AES-256-GCM, machine-derived key). No Keychain prompts unless you opt into `keychain`.
 
@@ -289,6 +313,7 @@ Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENA
 | `caipe agents list\|info` | Server agents |
 | `caipe kb …` | KB query, read chunks, ingest, jobs, RBAC (`user info`) — JSON only |
 | `caipe skills list\|install\|preview\|update` | Skill catalog |
+| `caipe update [--check]` | Check for or install a verified CLI release |
 | `caipe memory` | Project memory files |
 | `caipe commit` | DCO-aware commit helper |
 

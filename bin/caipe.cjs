@@ -27,7 +27,7 @@ function die(msg) {
   process.exit(1);
 }
 
-/** @typedef {{ kind: "exec", bin: string, binArgs: string[] } | { kind: "node", script: string, extraArgs?: string[] }} LaunchSpec */
+/** @typedef {{ kind: "exec", bin: string, binArgs: string[], env?: Record<string, string> } | { kind: "node", script: string, extraArgs?: string[], env?: Record<string, string> }} LaunchSpec */
 
 /** @returns {LaunchSpec[]} */
 function launchChain() {
@@ -47,7 +47,18 @@ function launchChain() {
       continue;
     }
     if (fs.existsSync(binPath)) {
-      packagedBinary = { kind: "exec", bin: binPath, binArgs: args };
+      const packageParent = path.dirname(root);
+      const npmManaged =
+        path.basename(packageParent) === "node_modules" &&
+        path.basename(path.dirname(packageParent)) === "lib";
+      packagedBinary = {
+        kind: "exec",
+        bin: binPath,
+        binArgs: args,
+        env: npmManaged
+          ? { CAIPE_INSTALL_METHOD: "npm" }
+          : { CAIPE_INSTALL_METHOD: "binary", CAIPE_BINARY_PATH: binPath },
+      };
       chain.push(packagedBinary);
       break;
     }
@@ -55,7 +66,12 @@ function launchChain() {
 
   const bundleCjs = path.join(root, "dist", "bundle.cjs");
   if (fs.existsSync(bundleCjs)) {
-    chain.push({ kind: "node", script: bundleCjs, extraArgs: args });
+    chain.push({
+      kind: "node",
+      script: bundleCjs,
+      extraArgs: args,
+      env: { CAIPE_INSTALL_METHOD: "source" },
+    });
   }
 
   let tsxCli;
@@ -66,12 +82,22 @@ function launchChain() {
   }
   const entry = path.join(root, "src", "index.ts");
   if (tsxCli && fs.existsSync(entry)) {
-    chain.unshift({ kind: "node", script: tsxCli, extraArgs: [entry, ...args] });
+    chain.unshift({
+      kind: "node",
+      script: tsxCli,
+      extraArgs: [entry, ...args],
+      env: { CAIPE_INSTALL_METHOD: "source" },
+    });
   }
 
   const local = path.join(root, "dist", "caipe");
   if (fs.existsSync(local)) {
-    chain.push({ kind: "exec", bin: local, binArgs: args });
+    chain.push({
+      kind: "exec",
+      bin: local,
+      binArgs: args,
+      env: { CAIPE_INSTALL_METHOD: "binary", CAIPE_BINARY_PATH: local },
+    });
   }
 
   if (preferCompiled && chain.length > 1) {
@@ -93,12 +119,13 @@ function launchChain() {
 }
 
 function spawnSpec(spec) {
+  const env = spec.env ? { ...process.env, ...spec.env } : process.env;
   if (spec.kind === "exec") {
-    return spawnSync(spec.bin, spec.binArgs, { stdio: "inherit" });
+    return spawnSync(spec.bin, spec.binArgs, { stdio: "inherit", env });
   }
   const nodeArgs = [spec.script];
   if (spec.extraArgs?.length) nodeArgs.push(...spec.extraArgs);
-  return spawnSync(process.execPath, nodeArgs, { stdio: "inherit" });
+  return spawnSync(process.execPath, nodeArgs, { stdio: "inherit", env });
 }
 
 function wasSigKill(result) {

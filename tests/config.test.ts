@@ -26,12 +26,14 @@ beforeEach(() => {
   // Clear URL env vars — must use empty string, not undefined (which becomes "undefined")
   process.env.CAIPE_AUTH_URL = "";
   process.env.CAIPE_SERVER_URL = "";
+  process.env.CAIPE_UPDATE_MODE = "";
 });
 
 afterEach(() => {
   process.env.XDG_CONFIG_HOME = "";
   process.env.CAIPE_AUTH_URL = "";
   process.env.CAIPE_SERVER_URL = "";
+  process.env.CAIPE_UPDATE_MODE = "";
   if (existsSync(testDir)) {
     rmSync(testDir, { recursive: true, force: true });
   }
@@ -46,6 +48,7 @@ import {
   ServerNotConfigured,
   getAuthUrl,
   getServerUrl,
+  getUpdateMode,
   globalConfigDir,
   readSettings,
   settingsJsonPath,
@@ -85,6 +88,18 @@ describe("settings read/write", () => {
     writeSettings({ agent: { default: "agent-sre" } });
     const s = readSettings();
     expect(s.agent?.default).toBe("agent-sre");
+  });
+
+  it("round-trips updates.mode", () => {
+    writeSettings({ updates: { mode: "auto" } });
+    const s = readSettings();
+    expect(s.updates?.mode).toBe("auto");
+  });
+
+  it("lets CAIPE_UPDATE_MODE override settings", () => {
+    writeSettings({ updates: { mode: "notify" } });
+    process.env.CAIPE_UPDATE_MODE = "off";
+    expect(getUpdateMode()).toBe("off");
   });
 
   it("handles corrupted settings file gracefully", () => {
