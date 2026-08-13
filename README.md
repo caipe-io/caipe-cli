@@ -4,15 +4,14 @@ Terminal client for [CAIPE](https://github.com/cnoe-io/ai-platform-engineering):
 
 ## TL;DR
 
-**Install the published multi-architecture package:**
+**Install CAIPE CLI:**
 
 ```bash
-npm install -g caipe@latest
-caipe --version
+bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup-caipe-cli.sh)
 ```
 
-The npm package automatically installs the matching binary for macOS or Linux
-on arm64 or x64. No Bun checkout or local compilation is required.
+The setup script installs Bun when needed, builds CAIPE CLI from the latest
+`main`, and adds `caipe` to `~/.local/bin`.
 
 **Point at your Grid deployment, sign in, chat:**
 
@@ -32,8 +31,8 @@ Other host (UI serves OAuth on the same URL): set only `server.url`, then `caipe
 
 ---
 
-- **Node.js 20.17+** (Node 22 LTS recommended) for npm/npx installation
-- **Bun 1.1+** only for building from source
+- macOS or Linux on arm64 or x64
+- `curl` and `git` (Bun is installed by the setup script when needed)
 - A reachable CAIPE deployment (API + OAuth)
 
 Optional: **keytar** only if you set `auth.credential-storage` to `keychain`.
@@ -42,64 +41,22 @@ Optional: **keytar** only if you set `auth.credential-storage` to `keychain`.
 
 ## Install
 
-### Option A — npm package (recommended)
-
 ```bash
-npm install -g caipe@latest
-caipe --version
+bash <(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/setup-caipe-cli.sh)
 ```
 
-For a one-off command without a global install:
+Then verify the installation with `caipe --version`. If `~/.local/bin` is not
+already on your `PATH`, the setup script prints the exact command to add it.
 
-```bash
-npx --yes caipe@latest --version
-```
-
-Use the registry package, not `npx github:cnoe-io/caipe-cli`. GitHub source
-installs do not receive the release pipeline's generated platform packages and
-can fail with `Could not start caipe` even after changing Node versions.
-
-### Option B — One-line binary installer
-
-Downloads the latest binary for the current architecture, verifies its SHA-256
-checksum, and installs the `caipe` launcher:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh | sh
-```
-
-Pin a release or choose a writable install directory when needed:
-
-```bash
-CAIPE_VERSION=0.2.22 CAIPE_INSTALL_DIR="$HOME/.local/bin" \
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh)"
-```
-
-### Option C — Build from source
-
-```bash
-git clone https://github.com/cnoe-io/caipe-cli.git
-cd caipe-cli
-bun install --frozen-lockfile
-npm run compile
-./dist/caipe --version
-```
-
-The legacy `setup-caipe-cli.sh` remains available for a one-line source build,
-but published packages are faster and reproducible.
-
-### Supported release binaries
-
-| Operating system | Architecture | npm platform package | Release asset |
-|------------------|--------------|----------------------|---------------|
-| macOS | Apple Silicon (arm64) | `caipe-darwin-arm64` | `caipe-darwin-arm64` |
-| macOS | Intel (x64) | `caipe-darwin-x64` | `caipe-darwin-x64` |
-| Linux | arm64 | `caipe-linux-arm64` | `caipe-linux-arm64` |
-| Linux | x64 | `caipe-linux-x64` | `caipe-linux-x64` |
+The npm package and downloadable release binaries are not published yet. Do
+not use `npm install caipe`, `npx github:cnoe-io/caipe-cli`, or `install.sh`
+until the first multi-architecture release is available.
 
 ---
 
-## Build from source
+## Developer guide
+
+### Build from source
 
 ```bash
 git clone https://github.com/cnoe-io/caipe-cli.git
@@ -129,9 +86,6 @@ npm rebuild keytar
 caipe config set auth.credential-storage keychain
 ```
 
-The release pipeline publishes all four platform packages before publishing
-the top-level `caipe` package, so npm can select the correct optional dependency.
-
 ### Verify the build
 
 ```bash
@@ -139,12 +93,22 @@ npm run lint
 npm test
 ```
 
-## Publish a release
+### Publish a release
 
 The `Publish caipe CLI` GitHub Actions workflow runs for semantic-version tags.
 It verifies the source, builds and smoke-tests all four supported binaries,
 publishes a GitHub release with checksums and keyless cosign signatures, then
 publishes the four platform packages and the top-level `caipe` npm package.
+
+This distribution path is for maintainers and is not a working user install
+method until the first tagged workflow completes successfully.
+
+| Operating system | Architecture | npm platform package | Release asset |
+|------------------|--------------|----------------------|---------------|
+| macOS | Apple Silicon (arm64) | `caipe-darwin-arm64` | `caipe-darwin-arm64` |
+| macOS | Intel (x64) | `caipe-darwin-x64` | `caipe-darwin-x64` |
+| Linux | arm64 | `caipe-linux-arm64` | `caipe-linux-arm64` |
+| Linux | x64 | `caipe-linux-x64` | `caipe-linux-x64` |
 
 ```bash
 git tag 0.2.22
