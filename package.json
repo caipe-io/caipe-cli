@@ -33,7 +33,7 @@
   "dependencies": {
     "@ag-ui/client": "0.0.52",
     "commander": "12.1.0",
-    "diff": "7.0.0",
+    "diff": "8.0.3",
     "execa": "9.6.1",
     "ink": "5.2.1",
     "marked": "15",
@@ -45,13 +45,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
-    "@types/diff": "6.0.0",
     "@types/node": "22.19.17",
     "@types/react": "18.3.28",
     "@types/semver": "7.7.1",
-    "esbuild": "0.24.2",
+    "esbuild": "0.25.0",
     "typescript": "5.9.3",
-    "vitest": "2.1.9"
+    "vitest": "3.2.6"
   },
   "optionalDependencies": {
     "caipe-darwin-arm64": "0.1.0",
@@ -78,6 +77,7 @@
     "@biomejs/biome"
   ],
   "overrides": {
-    "react-devtools-core": "file:./src/stubs/react-devtools-core"
+    "react-devtools-core": "file:./src/stubs/react-devtools-core",
+    "vite": "6.4.3"
   }
 }
