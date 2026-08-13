@@ -2,6 +2,8 @@
  * E2E: CLI entrypoints (Node/tsx — not raw Bun binaries on PATH).
  */
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execa } from "execa";
@@ -45,6 +47,34 @@ describe("bin/caipe.cjs", () => {
     });
     expect(exitCode).toBe(0);
     expect(stdout).toMatch(/chat|config|auth/i);
+    expect(stdout).toContain("doctor");
+    expect(stdout).toContain("Examples:");
+  });
+
+  it("prints actionable doctor JSON and exits non-zero when setup is missing", async () => {
+    const configHome = mkdtempSync(join(tmpdir(), "caipe-doctor-e2e-"));
+    try {
+      const { stdout, exitCode } = await execa(process.execPath, [launcher, "doctor", "--json"], {
+        cwd: root,
+        env: { ...nodeEnv, XDG_CONFIG_HOME: configHome },
+        reject: false,
+      });
+      const report = JSON.parse(stdout) as {
+        ok: boolean;
+        checks: Array<{ name: string; status: string; fix?: string }>;
+      };
+
+      expect(exitCode).toBe(1);
+      expect(report.ok).toBe(false);
+      expect(report.checks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Server", status: "fail" }),
+          expect.objectContaining({ name: "Authentication", fix: "caipe auth login" }),
+        ]),
+      );
+    } finally {
+      rmSync(configHome, { recursive: true, force: true });
+    }
   });
 });
 

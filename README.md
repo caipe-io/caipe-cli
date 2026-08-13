@@ -23,7 +23,9 @@ caipe agents list
 caipe chat --agent '<id-from-agents-list>'
 ```
 
-Type messages at the `❯` prompt. **`/`** for commands, **`Ctrl+O`** to pick an agent, **`Ctrl+D`** to exit.
+Type messages at the `❯` prompt. **`/`** for commands, **`/status`** for the active context,
+**`Ctrl+O`** to pick an agent, and **`Ctrl+D`** to exit. If setup or connectivity
+looks wrong, run **`caipe doctor`** for an actionable diagnostic report.
 
 Prompt line editing is implemented in-tree (`src/chat/line-edit.ts`, Apache-2.0): common bash/emacs keys (Ctrl+A/E/K/U/W/Y, Alt+b/f/d, Ctrl+R history search, etc.). It does **not** use GNU Readline or other GPL line-editing libraries.
 
@@ -285,6 +287,7 @@ Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENA
 |---------|-------------|
 | `caipe` / `caipe chat` | Interactive REPL |
 | `caipe auth login\|logout\|status` | OAuth session |
+| `caipe doctor` | Diagnose configuration, authentication, and agent connectivity |
 | `caipe config set\|get\|unset\|discover` | Settings (`discover` sets `auth.url` via well-known URLs or deployment hostname heuristics) |
 | `caipe agents list\|info` | Server agents |
 | `caipe kb …` | KB query, read chunks, ingest, jobs, RBAC (`user info`) — JSON only |
