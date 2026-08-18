@@ -27,10 +27,13 @@ const PAYLOAD: SendPayload = {
 const getToken = async () => "test-bearer-token";
 
 // Helper: build an AG-UI SSE frame
-const sseFrame = (eventType: string, payload: Record<string, unknown>): string => {
+const sseFrame = (eventType: string, payload: Record<string, unknown>, id?: number): string => {
   const data = JSON.stringify({ type: eventType, ...payload });
-  return `event: ${eventType}\ndata: ${data}\n\n`;
+  return `${id == null ? "" : `id: ${id}\n`}event: ${eventType}\ndata: ${data}\n\n`;
 };
+
+const canonicalFrame = (id: number, eventType: string, payload: Record<string, unknown>): string =>
+  `id: ${id}\nevent: ${eventType}\ndata: ${JSON.stringify(payload)}\n\n`;
 
 // ── AguiAdapter ───────────────────────────────────────────────────────────────
 
@@ -180,6 +183,39 @@ describe("AguiAdapter", () => {
     }
   });
 
+  it("accepts legacy snake_case tool result ids", async () => {
+    const mockBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            sseFrame("TOOL_CALL_RESULT", {
+              tool_call_id: "tc-legacy",
+              content: "legacy result",
+            }) + sseFrame("RUN_FINISHED", { runId: "r1", outcome: "success" }),
+          ),
+        );
+        controller.close();
+      },
+    });
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn(() =>
+      Promise.resolve(new Response(mockBody, { status: 200 })),
+    ) as unknown as typeof fetch;
+
+    try {
+      const adapter = new AguiAdapter(DEFAULT_AGENT, SERVER_URL, getToken);
+      const events = [];
+      for await (const event of adapter.connect(PAYLOAD)) events.push(event);
+      expect(events).toContainEqual({
+        type: "tool-result",
+        toolCallId: "tc-legacy",
+        content: "legacy result",
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it("maps RUN_ERROR to error events and stops stream", async () => {
     const mockBody = new ReadableStream({
       start(controller) {
@@ -258,6 +294,108 @@ describe("AguiAdapter", () => {
 
       const body = JSON.parse(capturedBody) as Record<string, unknown>;
       expect(body.agent_id).toBe("resolved-agent");
+      expect(body.context).toBeUndefined();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("forwards portable repository and memory context", async () => {
+    let capturedBody = "";
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn((_url, init) => {
+      capturedBody = (init?.body as string) ?? "";
+      return Promise.resolve(new Response("error", { status: 503 }));
+    }) as unknown as typeof fetch;
+
+    try {
+      const adapter = new AguiAdapter(DEFAULT_AGENT, SERVER_URL, getToken);
+      for await (const _ of adapter.connect({
+        ...PAYLOAD,
+        systemContext: "repository, skills, and memory context",
+      })) {
+        /* drain */
+      }
+      expect(JSON.parse(capturedBody)).toMatchObject({
+        context: "repository, skills, and memory context",
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("reconnects a detached Harness Engine run without resubmitting the prompt", async () => {
+    const initialBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            sseFrame("RUN_STARTED", { runId: "run-1" }, 1) +
+              sseFrame("TEXT_MESSAGE_CONTENT", { delta: "Hello " }, 2),
+          ),
+        );
+        controller.close();
+      },
+    });
+    const replayBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            canonicalFrame(2, "content.delta", { text: "Hello " }) +
+              canonicalFrame(3, "content.delta", { text: "world" }) +
+              canonicalFrame(4, "tool.started", {
+                tool_call_id: "tool-1",
+                tool_name: "search",
+                arguments: { query: "example" },
+              }) +
+              canonicalFrame(5, "tool.completed", {
+                tool_call_id: "tool-1",
+                result: { status: "ok" },
+              }) +
+              canonicalFrame(6, "run.completed", {}),
+          ),
+        );
+        controller.close();
+      },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(initialBody, {
+          status: 200,
+          headers: {
+            "X-Harness-Run-ID": "run-1",
+            "X-Harness-ID": "agentcore",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(replayBody, { status: 200 }));
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const adapter = new AguiAdapter(DEFAULT_AGENT, SERVER_URL, getToken);
+      const events = [];
+      for await (const event of adapter.connect(PAYLOAD)) events.push(event);
+
+      expect(
+        events
+          .filter((event) => event.type === "token")
+          .map((event) => (event as { text: string }).text)
+          .join(""),
+      ).toBe("Hello world");
+      expect(events).toContainEqual({ type: "tool", name: "search", toolCallId: "tool-1" });
+      expect(events).toContainEqual({
+        type: "tool-result",
+        toolCallId: "tool-1",
+        content: '{"status":"ok"}',
+      });
+      expect(events.at(-1)).toEqual({ type: "done" });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+        "https://caipe.test/api/harness-engine/runs/run-1/events/stream",
+      );
+      expect(fetchMock.mock.calls[1]?.[1]?.headers).toMatchObject({ "Last-Event-ID": "1" });
+      expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("GET");
     } finally {
       global.fetch = originalFetch;
     }

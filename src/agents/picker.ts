@@ -1,5 +1,6 @@
 import { pickerWindow } from "../chat/picker-nav.js";
 import type { Agent } from "./types.js";
+import { harnessDisplayName, normalizeHarnessId } from "./types.js";
 
 export { pickerWindow };
 
@@ -10,7 +11,9 @@ export function filterAgents(agents: Agent[], query: string): Agent[] {
     (a) =>
       a.name.toLowerCase().includes(q) ||
       a.displayName.toLowerCase().includes(q) ||
-      a.description.toLowerCase().includes(q),
+      a.description.toLowerCase().includes(q) ||
+      normalizeHarnessId(a.harnessId).includes(q) ||
+      harnessDisplayName(a).toLowerCase().includes(q),
   );
 }
 

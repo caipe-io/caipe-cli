@@ -16,6 +16,8 @@ const sample: Agent[] = [
     protocols: ["agui"],
     available: true,
     domain: "general",
+    harnessId: "agentcore",
+    harnessName: "Amazon Bedrock AgentCore",
   },
   {
     name: "agent-finops-agent",
@@ -32,6 +34,7 @@ describe("agent picker helpers", () => {
   it("filters by name and description", () => {
     expect(filterAgents(sample, "litellm").map((a) => a.name)).toEqual(["agent-finops-agent"]);
     expect(filterAgents(sample, "sre").map((a) => a.name)).toEqual(["agent-sre"]);
+    expect(filterAgents(sample, "agentcore").map((a) => a.name)).toEqual(["agent-sre"]);
   });
 
   it("sorts active agent first", () => {

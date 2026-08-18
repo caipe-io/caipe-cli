@@ -8,7 +8,7 @@ import type React from "react";
 import { PICKER_HINT_NAV } from "../chat/shortcuts.js";
 import { isRichTerminalEnabled } from "../platform/terminal/capabilities.js";
 import { pickerWindow, truncateText } from "./picker.js";
-import type { Agent } from "./types.js";
+import { type Agent, harnessDisplayName } from "./types.js";
 
 const DESC_SELECTED_MAX = 240;
 const ROW_SEPARATOR = "  ────────────────────────────────────────────────────────";
@@ -114,6 +114,13 @@ export function AgentPicker({
                     {" · in session"}
                   </Text>
                 ) : null}
+                <Text
+                  backgroundColor={rowBg}
+                  color={selected ? (rich ? "white" : "cyan") : undefined}
+                  dimColor={!selected}
+                >
+                  {` · ${harnessDisplayName(agent)}`}
+                </Text>
               </Box>
               {selected && descLine ? (
                 <>
@@ -152,6 +159,7 @@ export function AgentPicker({
         <Text bold color="white">
           {selectedAgent ? agentTitle(selectedAgent) : ""}
         </Text>
+        <Text dimColor>{selectedAgent ? ` · ${harnessDisplayName(selectedAgent)}` : ""}</Text>
         <Text dimColor>{` · Enter switch · ${agents.length} total · or /agents <id>`}</Text>
       </Box>
     </Box>

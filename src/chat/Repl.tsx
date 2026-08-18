@@ -17,6 +17,7 @@ import { AgentPicker } from "../agents/AgentPicker.js";
 import { filterAgents, sortAgentsForPicker } from "../agents/picker.js";
 import { fetchAgents, getAgent } from "../agents/registry.js";
 import type { Agent } from "../agents/types.js";
+import { harnessDisplayName } from "../agents/types.js";
 import { loginBrowser } from "../auth/oauth.js";
 import { getValidToken } from "../auth/tokens.js";
 import {
@@ -1035,7 +1036,9 @@ export function Repl({
       adapterRef.current = createAdapter(target, ep.streamStart, () => getValidToken(authUrl2));
       conversationIdRef.current = undefined;
       setCurrentAgent(target);
-      pushAssistantPlain(`Switched to agent ${target.displayName ?? target.name}.`);
+      pushAssistantPlain(
+        `Switched to agent ${target.displayName ?? target.name} · ${harnessDisplayName(target)}.`,
+      );
     },
     [serverUrl, pushAssistantPlain],
   );
@@ -1919,6 +1922,7 @@ export function Repl({
           {currentAgent.name !== "hello-world" && currentAgent.name !== "default"
             ? `${currentAgent.name} · `
             : ""}
+          {`${harnessDisplayName(currentAgent)} · `}
           {totalTokenDisplay > 0 ? `~${totalTokenDisplay} tokens · ` : ""}
           {serverHost ?? ""}
         </Text>

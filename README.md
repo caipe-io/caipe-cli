@@ -284,6 +284,13 @@ caipe skills list
 caipe skills install <name>
 ```
 
+Agent listings, the interactive picker, and the chat footer show the selected
+execution harness (LangChain Deep Agents, AgentCore, Claude Agent SDK, or a
+custom harness). Harness Engine streams are detached from the CLI connection:
+if SSE disconnects, the CLI resumes the existing run from its last event ID
+without submitting the prompt or repeating provider/tool execution. Older
+CAIPE servers remain supported and default to LangChain Deep Agents metadata.
+
 ### Headless / CI
 
 ```bash
