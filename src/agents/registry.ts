@@ -28,6 +28,8 @@ interface AgentPickerEntry {
   id: string;
   name: string;
   description: string;
+  harness_id?: string;
+  harness_name?: string;
 }
 
 interface AgentPickerResponse {
@@ -74,6 +76,8 @@ export async function fetchAgents(
       protocols: ["agui"],
       available: true,
       domain: "general",
+      harnessId: e.harness_id,
+      harnessName: e.harness_name,
     }));
     writeCache(serverUrl, agents);
     return agents;

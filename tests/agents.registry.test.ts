@@ -70,7 +70,13 @@ describe("fetchAgents", () => {
           success: true,
           data: {
             agents: [
-              { id: "agent-alpha", name: "Alpha", description: "First page" },
+              {
+                id: "agent-alpha",
+                name: "Alpha",
+                description: "First page",
+                harness_id: "agentcore",
+                harness_name: "Amazon Bedrock AgentCore",
+              },
               { id: "agent-beta", name: "Beta", description: "First page" },
             ],
             total: 3,
@@ -95,6 +101,11 @@ describe("fetchAgents", () => {
     const result = await fetchAgents("https://grid.example.com", async () => "token");
 
     expect(result.map((agent) => agent.name)).toEqual(["agent-alpha", "agent-beta", "agent-tome"]);
+    expect(result[0]).toMatchObject({
+      harnessId: "agentcore",
+      harnessName: "Amazon Bedrock AgentCore",
+    });
+    expect(result[1]).toMatchObject({ harnessId: undefined, harnessName: undefined });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
       "https://grid.example.com/api/user/accessible-agents?page=1&page_size=100",

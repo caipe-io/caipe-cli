@@ -136,7 +136,7 @@ describe("createOutputWriter", () => {
     const writer = createOutputWriter("json");
     writer.write({ type: "token", text: "Hello " });
     writer.write({ type: "token", text: "world" });
-    writer.flush("argocd");
+    writer.flush("argocd", "agentcore", "Amazon Bedrock AgentCore");
 
     process.stdout.write = origWrite;
     const output = chunks.join("");
@@ -144,6 +144,34 @@ describe("createOutputWriter", () => {
     expect(parsed.response).toBe("Hello world");
     expect(parsed.agent).toBe("argocd");
     expect(parsed.protocol).toBe("agui");
+    expect(parsed.harnessId).toBe("agentcore");
+    expect(parsed.harnessName).toBe("Amazon Bedrock AgentCore");
+  });
+
+  it("ndjson started events expose harness replay identity", async () => {
+    const { createOutputWriter } = await import("../src/headless/output");
+    const chunks: string[] = [];
+    const origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk: unknown) => {
+      chunks.push(String(chunk));
+      return true;
+    };
+
+    const writer = createOutputWriter("ndjson");
+    writer.write({
+      type: "started",
+      taskId: "run-1",
+      harnessId: "claude_agent_sdk",
+      replayed: true,
+    });
+
+    process.stdout.write = origWrite;
+    expect(JSON.parse(chunks.join(""))).toEqual({
+      type: "started",
+      runId: "run-1",
+      harnessId: "claude_agent_sdk",
+      replayed: true,
+    });
   });
 
   it("ndjson format emits per-event JSON lines", async () => {

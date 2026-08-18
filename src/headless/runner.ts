@@ -8,7 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolveSessionAgent } from "../agents/registry.js";
-import type { Agent } from "../agents/types.js";
+import { type Agent, harnessDisplayName, normalizeHarnessId } from "../agents/types.js";
 import { buildSystemContext } from "../chat/context.js";
 import { createSession } from "../chat/history.js";
 import { createAdapter } from "../chat/stream.js";
@@ -88,12 +88,20 @@ export async function runHeadless(opts: HeadlessOpts): Promise<void> {
       if (line.trim() === "\\exit" || line.trim() === "/exit") break;
       await runSingleTurn(line, session, adapter, systemContext, writer, resolvedAgent.name);
     }
-    writer.flush(resolvedAgent.name);
+    writer.flush(
+      resolvedAgent.name,
+      normalizeHarnessId(resolvedAgent.harnessId),
+      harnessDisplayName(resolvedAgent),
+    );
   } else {
     // Single-shot
     const prompt = await resolvePrompt(opts);
     await runSingleTurn(prompt, session, adapter, systemContext, writer, resolvedAgent.name);
-    writer.flush(resolvedAgent.name);
+    writer.flush(
+      resolvedAgent.name,
+      normalizeHarnessId(resolvedAgent.harnessId),
+      harnessDisplayName(resolvedAgent),
+    );
   }
 }
 

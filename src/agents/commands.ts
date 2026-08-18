@@ -8,6 +8,7 @@ import { getValidToken } from "../auth/tokens.js";
 import { getAuthUrl, getServerUrl } from "../platform/config.js";
 import { AgentList } from "./List.js";
 import { fetchAgents, getAgent } from "./registry.js";
+import { harnessDisplayName, normalizeHarnessId } from "./types.js";
 
 interface GlobalOpts {
   url?: string;
@@ -31,6 +32,8 @@ export async function runAgentsList(
           name: a.name,
           displayName: a.displayName,
           domain: a.domain,
+          harnessId: normalizeHarnessId(a.harnessId),
+          harnessName: harnessDisplayName(a),
           protocols: a.protocols,
           available: a.available,
         })),
@@ -45,7 +48,7 @@ export async function runAgentsList(
     for (const a of agents) {
       const dot = a.available ? "✓" : "✗";
       process.stdout.write(
-        `${dot} ${a.name.padEnd(20)} ${a.domain.padEnd(12)} ${(a.protocols ?? ["agui"]).join(",")}\n`,
+        `${dot} ${a.name.padEnd(20)} ${a.domain.padEnd(12)} ${harnessDisplayName(a).padEnd(28)} ${(a.protocols ?? ["agui"]).join(",")}\n`,
       );
     }
     return;
@@ -68,6 +71,9 @@ export async function runAgentsInfo(name: string, globalOpts: GlobalOpts): Promi
   process.stdout.write(`\nAgent: ${agent.displayName}\n`);
   process.stdout.write(`  Name:        ${agent.name}\n`);
   process.stdout.write(`  Domain:      ${agent.domain}\n`);
+  process.stdout.write(
+    `  Harness:     ${harnessDisplayName(agent)} (${normalizeHarnessId(agent.harnessId)})\n`,
+  );
   process.stdout.write(`  Protocols:   ${(agent.protocols ?? ["agui"]).join(", ")}\n`);
   process.stdout.write(`  Available:   ${agent.available ? "yes" : "no"}\n`);
   process.stdout.write(`  Endpoint:    ${agent.endpoint}\n`);

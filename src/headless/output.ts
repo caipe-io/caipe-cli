@@ -14,7 +14,7 @@ export type OutputFormat = "text" | "json" | "ndjson";
 
 export interface OutputWriter {
   write(event: StreamEvent): void;
-  flush(agentName: string): void;
+  flush(agentName: string, harnessId?: string, harnessName?: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ class TextWriter implements OutputWriter {
     }
   }
 
-  flush(_agentName: string): void {
+  flush(_agentName: string, _harnessId?: string, _harnessName?: string): void {
     process.stdout.write("\n");
   }
 }
@@ -67,9 +67,15 @@ class JsonWriter implements OutputWriter {
     }
   }
 
-  flush(agentName: string): void {
+  flush(agentName: string, harnessId?: string, harnessName?: string): void {
     process.stdout.write(
-      `${JSON.stringify({ response: this.accumulated, agent: agentName, protocol: "agui" })}\n`,
+      `${JSON.stringify({
+        response: this.accumulated,
+        agent: agentName,
+        protocol: "agui",
+        ...(harnessId ? { harnessId } : {}),
+        ...(harnessName ? { harnessName } : {}),
+      })}\n`,
     );
   }
 }
@@ -89,11 +95,18 @@ class NdjsonWriter implements OutputWriter {
     } else if (event.type === "tool") {
       process.stdout.write(`${JSON.stringify({ type: "tool", name: event.name })}\n`);
     } else if (event.type === "started") {
-      process.stdout.write(`${JSON.stringify({ type: "started" })}\n`);
+      process.stdout.write(
+        `${JSON.stringify({
+          type: "started",
+          ...(event.taskId ? { runId: event.taskId } : {}),
+          ...(event.harnessId ? { harnessId: event.harnessId } : {}),
+          ...(event.replayed ? { replayed: true } : {}),
+        })}\n`,
+      );
     }
   }
 
-  flush(_agentName: string): void {
+  flush(_agentName: string, _harnessId?: string, _harnessName?: string): void {
     // done event already emitted by write()
   }
 }

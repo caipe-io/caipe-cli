@@ -5,7 +5,7 @@
 import { Box, Text } from "ink";
 import type React from "react";
 import { statusDot } from "../platform/display.js";
-import type { Agent } from "./types.js";
+import { type Agent, harnessDisplayName } from "./types.js";
 
 interface AgentListProps {
   agents: Agent[];
@@ -31,21 +31,25 @@ export function AgentList({ agents }: AgentListProps): React.ReactElement {
           {"Domain".padEnd(14)}
         </Text>
         <Text bold color="cyan">
-          {"Protocols".padEnd(16)}
+          {"Harness".padEnd(28)}
+        </Text>
+        <Text bold color="cyan">
+          {"Protocols".padEnd(12)}
         </Text>
         <Text bold color="cyan">
           Status
         </Text>
       </Box>
       <Box>
-        <Text dimColor>{"─".repeat(60)}</Text>
+        <Text dimColor>{"─".repeat(90)}</Text>
       </Box>
 
       {agents.map((agent) => (
         <Box key={agent.name}>
           <Text>{agent.name.padEnd(20)}</Text>
           <Text dimColor>{agent.domain.padEnd(14)}</Text>
-          <Text dimColor>{(agent.protocols ?? ["agui"]).join(", ").padEnd(16)}</Text>
+          <Text dimColor>{harnessDisplayName(agent).padEnd(28)}</Text>
+          <Text dimColor>{(agent.protocols ?? ["agui"]).join(", ").padEnd(12)}</Text>
           <Text>{statusDot(agent.available)}</Text>
           <Text dimColor> {agent.displayName}</Text>
         </Box>
