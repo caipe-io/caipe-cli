@@ -181,8 +181,22 @@ git tag 0.2.22
 git push origin 0.2.22
 ```
 
-The GitHub `npm-publish` environment must provide an `NPM_TOKEN` secret with
-permission to publish `caipe` and the four `caipe-<os>-<arch>` packages.
+Publishing uses npm Trusted Publishing with GitHub Actions OIDC; no long-lived
+npm write token is stored in GitHub. Configure each of `caipe` and the four
+`caipe-<os>-<arch>` packages on npmjs.com with this trusted publisher:
+
+- GitHub organization: `caipe-io`
+- Repository: `caipe-cli`
+- Workflow: `release.yml`
+- Environment: `npm-publish`
+- Allowed action: `npm publish`
+
+The packages must exist in the registry before npm allows trusted-publisher
+configuration. Bootstrap each package once from a maintainer workstation using
+interactive npm authentication and 2FA, then configure the trust relationship
+and disallow token-based publishing. Protect the GitHub `npm-publish`
+environment with required reviewers and deployment branch/tag rules.
+
 Prerelease tags such as `0.2.22-rc.1` publish to npm's `next` dist-tag; stable
 versions publish to `latest`.
 
