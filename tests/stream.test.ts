@@ -262,6 +262,27 @@ describe("AguiAdapter", () => {
       global.fetch = originalFetch;
     }
   });
+
+  it("identifies stream requests as coming from the CLI", async () => {
+    let capturedBody = "";
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn((_url, init) => {
+      capturedBody = (init?.body as string) ?? "";
+      return Promise.resolve(new Response("error", { status: 503 }));
+    }) as unknown as typeof fetch;
+
+    try {
+      const adapter = new AguiAdapter(DEFAULT_AGENT, SERVER_URL, getToken);
+      for await (const _ of adapter.connect(PAYLOAD)) {
+        /* drain */
+      }
+
+      const body = JSON.parse(capturedBody) as Record<string, unknown>;
+      expect(body.client_context).toEqual({ source: "cli" });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
 
 // ── createAdapter factory ─────────────────────────────────────────────────────
