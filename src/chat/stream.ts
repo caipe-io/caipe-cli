@@ -2,7 +2,7 @@
  * AG-UI streaming adapter for dynamic agents.
  *
  * Calls POST <authUrl>/api/v1/chat/stream/start with body:
- *   { message, conversation_id, agent_id, protocol: "agui", context? }
+ *   { message, conversation_id, agent_id, protocol: "agui", client_context, context? }
  *
  * Each user turn prepends a `<client-context>` date block so agents resolve
  * "this week" / "today" without relying on model cutoff.
@@ -151,7 +151,7 @@ function shouldTryNextClientType(status: number, bodyText: string): boolean {
 /**
  * Calls the dynamic agents streaming endpoint via the caipe-ui BFF.
  *
- * Body: { message, conversation_id, agent_id, protocol: "agui" }
+ * Body: { message, conversation_id, agent_id, protocol: "agui", client_context: { source: "cli" } }
  * Events: AG-UI SSE — RUN_STARTED, TEXT_MESSAGE_CONTENT, TOOL_CALL_START,
  *         TOOL_CALL_END, RUN_FINISHED, RUN_ERROR, CUSTOM
  */
@@ -276,6 +276,7 @@ export class AguiAdapter implements StreamAdapter {
       conversation_id: conversationId,
       agent_id: agentId,
       protocol: "agui",
+      client_context: { source: "cli" },
     };
     const ctx = payload.systemContext?.trim();
     if (ctx) bodyObj.context = ctx;
