@@ -42,14 +42,15 @@ function writeResult(result: UpdateResult, json: boolean): void {
 }
 
 function updateWithNpm(release: ReleaseInfo): void {
-  const result = spawnSync("npm", ["install", "--global", `caipe@${release.version}`], {
+  const packageSpec = `@caipe-io/caipe@${release.version}`;
+  const result = spawnSync("npm", ["install", "--global", packageSpec], {
     stdio: "inherit",
     env: { ...process.env, CAIPE_NO_UPDATE_CHECK: "1" },
   });
   if (result.error) throw new UpdateError(`Could not run npm: ${result.error.message}`);
   if (result.status !== 0) {
     throw new UpdateError(
-      `npm could not install caipe@${release.version}. Fix the npm error above and retry.`,
+      `npm could not install ${packageSpec}. Fix the npm error above and retry.`,
     );
   }
 }
