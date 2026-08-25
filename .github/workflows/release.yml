@@ -326,16 +326,27 @@ jobs:
     name: Publish npm packages
     needs: [release, sign]
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     environment: npm-publish
     permissions:
       contents: read
       id-token: write
-    env:
-      NPM_CONFIG_USERCONFIG: ${{ github.workspace }}/.npmrc
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ needs.release.outputs.tag }}
+
+      - name: Set up Node.js for npm trusted publishing
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install npm with trusted publishing support
+        run: |
+          npm install --global npm@11.15.0
+          test "$(npm --version)" = "11.15.0"
 
       - name: Download release artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
@@ -364,14 +375,8 @@ jobs:
           done
           npm pack --dry-run
 
-      - name: Configure npm authentication
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: printf '%s\n' "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "$NPM_CONFIG_USERCONFIG"
-
       - name: Publish platform packages
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           npm_tag=latest
@@ -382,7 +387,6 @@ jobs:
 
       - name: Publish caipe package
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           npm_tag=latest
