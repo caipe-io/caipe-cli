@@ -258,7 +258,7 @@ jobs:
             Published npm package (automatic platform selection):
 
             ```bash
-            npm install -g caipe@${{ needs.prepare.outputs.version }}
+            npm install -g @caipe-io/caipe@${{ needs.prepare.outputs.version }}
             caipe --version
             ```
 

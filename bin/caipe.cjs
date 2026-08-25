@@ -147,7 +147,7 @@ function runChain(chain) {
     process.exit(r.status ?? (r.signal ? 128 : 1));
   }
   die(
-    "Could not start caipe. Install the published package with `npm install -g caipe`, use install.sh, or run `npm run dev -- --version` from a checkout.",
+    "Could not start caipe. Install the published package with `npm install -g @caipe-io/caipe`, use install.sh, or run `npm run dev -- --version` from a checkout.",
   );
 }
 

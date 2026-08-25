@@ -89,7 +89,12 @@ curl -fsSL https://raw.githubusercontent.com/cnoe-io/caipe-cli/main/install.sh \
   | CAIPE_VERSION=0.2.22 sh
 ```
 
-The npm package is not published yet; use `install.sh` until it is available.
+Alternatively, install the npm package. The executable is still named `caipe`:
+
+```bash
+npm install -g @caipe-io/caipe
+caipe --version
+```
 
 ### Updates
 
@@ -164,10 +169,8 @@ npm test
 The `Publish caipe CLI` GitHub Actions workflow runs for semantic-version tags.
 It verifies the source, builds and smoke-tests all four supported binaries,
 publishes a GitHub release with checksums and keyless cosign signatures, then
-publishes the four platform packages and the top-level `caipe` npm package.
-
-This distribution path is for maintainers and is not a working user install
-method until the first tagged workflow completes successfully.
+publishes the four platform packages and the top-level `@caipe-io/caipe` npm
+package.
 
 | Operating system | Architecture | npm platform package | Release asset |
 |------------------|--------------|----------------------|---------------|
@@ -182,7 +185,7 @@ git push origin 0.2.22
 ```
 
 Publishing uses npm Trusted Publishing with GitHub Actions OIDC; no long-lived
-npm write token is stored in GitHub. Configure each of `caipe` and the four
+npm write token is stored in GitHub. Configure `@caipe-io/caipe` and the four
 `caipe-<os>-<arch>` packages on npmjs.com with this trusted publisher:
 
 - GitHub organization: `caipe-io`

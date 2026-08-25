@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "caipe",
+      "name": "@caipe-io/caipe",
       "dependencies": {
         "@ag-ui/client": "0.0.52",
         "@agentclientprotocol/sdk": "1.4.0",

@@ -1,5 +1,5 @@
 {
-  "name": "caipe",
+  "name": "@caipe-io/caipe",
   "version": "0.1.0",
   "description": "AI-assisted coding, workflows, and platform engineering from the terminal",
   "type": "module",
