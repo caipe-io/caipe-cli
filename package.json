@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@ag-ui/client": "0.0.52",
+    "@agentclientprotocol/sdk": "1.4.0",
     "commander": "12.1.0",
     "diff": "8.0.3",
     "execa": "9.6.1",
@@ -41,7 +42,8 @@
     "react": "18.3.1",
     "react-devtools-core": "file:./src/stubs/react-devtools-core",
     "semver": "7.7.4",
-    "tsx": "4.21.0"
+    "tsx": "4.21.0",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
@@ -66,6 +68,8 @@
     "caipe",
     "ai",
     "cli",
+    "acp",
+    "agent-client-protocol",
     "platform-engineering"
   ],
   "license": "Apache-2.0",

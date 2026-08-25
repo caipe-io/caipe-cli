@@ -292,6 +292,61 @@ caipe chat --headless --prompt-file question.txt --output json
 caipe chat --headless --token "$JWT" --prompt "health check"
 ```
 
+### ACP editor integration
+
+`caipe acp` exposes accessible CAIPE agents to editors that support the
+[Agent Client Protocol](https://agentclientprotocol.com/). The editor launches
+the CLI as a local subprocess; the CLI translates ACP JSON-RPC on stdio to the
+remote CAIPE AG-UI service.
+
+Authenticate and select an agent before configuring the editor:
+
+```bash
+caipe auth login
+caipe agents list
+caipe config set agent.default <agent-id>  # optional
+```
+
+For [Zed custom agents](https://zed.dev/docs/ai/external-agents#custom-agents),
+add an `agent_servers` entry to `settings.json`:
+
+```json
+{
+  "agent_servers": {
+    "CAIPE": {
+      "type": "custom",
+      "command": "caipe",
+      "args": ["acp", "--agent", "<agent-id>"],
+      "env": {}
+    }
+  }
+}
+```
+
+Omit `--agent <agent-id>` to use `agent.default` or the first accessible
+agent. `CAIPE_SERVER_URL`, `CAIPE_AUTH_URL`, and `CAIPE_DEFAULT_AGENT` work in
+the editor process as they do in the terminal. ACP clients that support
+terminal authentication can relaunch the command with `--login`; otherwise,
+run `caipe auth login` separately when the client reports `auth_required`.
+
+Current ACP support:
+
+- ACP v1 over newline-delimited JSON-RPC on stdin/stdout
+- concurrent sessions, multi-turn CAIPE conversations, and cancellation
+- text and resource-link prompts
+- streaming agent text and tool-call lifecycle updates
+- existing CAIPE server-side tools and MCP servers configured on the selected agent
+
+Current limitations:
+
+- Session load/resume, image/audio prompts, and client filesystem or terminal requests are not advertised.
+- MCP servers supplied by the editor in `session/new` are rejected with an explicit error. A local-to-remote MCP bridge is required before these can be connected safely. This does not affect MCP servers already configured on the CAIPE agent.
+- Remote ACP transports and the draft ACP v2 protocol are not supported.
+
+ACP mode reserves stdout for JSON-RPC. Diagnostics go to stderr and the normal
+startup update check, logo, and interactive UI do not run. In Zed, use
+`dev: open acp logs` to inspect protocol traffic.
+
 ### Auth commands
 
 ```bash
@@ -353,6 +408,7 @@ Shared flags on `caipe kb`: `--kb-url`, `--token`, `--tenant-id` (or `CAIPE_TENA
 | Command | Description |
 |---------|-------------|
 | `caipe` / `caipe chat` | Interactive REPL |
+| `caipe acp [--agent <id>]` | ACP v1 agent bridge over stdio for compatible editors |
 | `caipe auth login\|logout\|status` | OAuth session |
 | `caipe config set\|get\|unset\|discover` | Settings (`discover` sets `auth.url` via well-known URLs or deployment hostname heuristics) |
 | `caipe agents list\|info` | Server agents |

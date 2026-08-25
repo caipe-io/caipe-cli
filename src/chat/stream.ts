@@ -109,6 +109,8 @@ export interface SendPayload {
   conversationId?: string;
   agentName: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  /** Cancels conversation creation and the active AG-UI stream. */
+  signal?: AbortSignal;
 }
 
 export interface ConversationEvent {
@@ -187,6 +189,7 @@ export class AguiAdapter implements StreamAdapter {
     agentId: string,
     token: string,
     persistedId?: string,
+    signal?: AbortSignal,
   ): Promise<string> {
     if (persistedId) {
       this.conversationIds.set(sessionId, persistedId);
@@ -221,6 +224,7 @@ export class AguiAdapter implements StreamAdapter {
             agent_id: agentId,
             metadata: attempt.metadata,
           }),
+          signal,
         });
         if (res.ok) break;
 
@@ -256,6 +260,7 @@ export class AguiAdapter implements StreamAdapter {
         agentId,
         token,
         payload.conversationId,
+        payload.signal,
       );
     } catch (err) {
       yield { type: "error", message: err instanceof Error ? err.message : String(err) };
@@ -291,6 +296,7 @@ export class AguiAdapter implements StreamAdapter {
         Accept: "text/event-stream",
       },
       body,
+      signal: payload.signal,
     });
 
     if (!res.ok) {
