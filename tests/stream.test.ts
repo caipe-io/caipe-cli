@@ -283,6 +283,26 @@ describe("AguiAdapter", () => {
       global.fetch = originalFetch;
     }
   });
+
+  it("passes cancellation to the AG-UI fetch", async () => {
+    const controller = new AbortController();
+    let capturedSignal: AbortSignal | null | undefined;
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn((_url, init) => {
+      capturedSignal = init?.signal;
+      return Promise.resolve(new Response("error", { status: 503 }));
+    }) as unknown as typeof fetch;
+
+    try {
+      const adapter = new AguiAdapter(DEFAULT_AGENT, SERVER_URL, getToken);
+      for await (const _ of adapter.connect({ ...PAYLOAD, signal: controller.signal })) {
+        /* drain */
+      }
+      expect(capturedSignal).toBe(controller.signal);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
 
 // ── createAdapter factory ─────────────────────────────────────────────────────

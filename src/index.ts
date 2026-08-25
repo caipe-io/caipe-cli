@@ -63,6 +63,28 @@ const chatCmd = program
 void chatCmd;
 
 // ---------------------------------------------------------------------------
+// caipe acp
+// ---------------------------------------------------------------------------
+program
+  .command("acp")
+  .description("Run CAIPE as an Agent Client Protocol (ACP) agent over stdio")
+  .option("--agent <name>", "Pin ACP sessions to this CAIPE server agent")
+  .option("--no-context", "Skip git/repo context gathering")
+  .option("--login", "Authenticate in an interactive terminal, then exit")
+  .action(async (opts: Record<string, unknown>) => {
+    const { runAcp } = await import("./acp/runner.js");
+    await runAcp(
+      {
+        agent: typeof opts.agent === "string" ? opts.agent : undefined,
+        login: opts.login === true,
+        noContext: opts.context === false,
+      },
+      program.opts(),
+      pkg.version,
+    );
+  });
+
+// ---------------------------------------------------------------------------
 // caipe auth
 // ---------------------------------------------------------------------------
 const authCmd = program.command("auth").description("Manage authentication");

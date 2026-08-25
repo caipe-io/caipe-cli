@@ -46,6 +46,53 @@ describe("bin/caipe.cjs", () => {
     expect(exitCode).toBe(0);
     expect(stdout).toMatch(/chat|config|auth/i);
     expect(stdout).toContain("update");
+    expect(stdout).toContain("acp");
+  });
+
+  it("serves ACP initialize over clean JSON-RPC stdout", async () => {
+    const request = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: 1,
+        clientCapabilities: {},
+      },
+    });
+    const { stdout, exitCode } = await execa(process.execPath, [launcher, "acp"], {
+      cwd: root,
+      env: nodeEnv,
+      input: `${request}\n`,
+    });
+
+    expect(exitCode).toBe(0);
+    const lines = stdout.trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        protocolVersion: 1,
+        agentInfo: { name: "caipe-cli" },
+      },
+    });
+  });
+
+  it("returns a JSON-RPC parse error for malformed ACP input", async () => {
+    const { stdout, exitCode } = await execa(process.execPath, [launcher, "acp"], {
+      cwd: root,
+      env: nodeEnv,
+      input: "{not-json}\n",
+    });
+
+    expect(exitCode).toBe(0);
+    const lines = stdout.trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700 },
+    });
   });
 });
 
