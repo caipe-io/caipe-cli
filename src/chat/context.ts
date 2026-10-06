@@ -70,6 +70,8 @@ export function formatClientDateContext(now = new Date()): string {
 export interface ContextExtras {
   serverUrl?: string;
   getToken?: () => Promise<string>;
+  /** Explicit {} prevents headless clients from inheriting a stored OAuth user's identity. */
+  user?: ClientUserContext;
 }
 
 /**
@@ -86,7 +88,7 @@ export async function buildSystemContext(
   const memoryContext = buildMemoryContext(memoryFiles);
   const { loadTokens } = await import("../auth/keychain.js");
   const clock = formatClientContextBlock({
-    user: clientUserFromTokenSet(await loadTokens()),
+    user: extras.user ?? clientUserFromTokenSet(await loadTokens()),
   });
 
   if (noContext) {

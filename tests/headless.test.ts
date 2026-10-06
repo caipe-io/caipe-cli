@@ -13,19 +13,19 @@ beforeEach(() => {
   testDir = join(tmpdir(), `caipe-headless-${process.pid}-${Date.now()}`);
   mkdirSync(testDir, { recursive: true });
   process.env.XDG_CONFIG_HOME = testDir;
-  // Clear all credential env vars — use empty string, not undefined
-  process.env.CAIPE_TOKEN = "";
-  process.env.CAIPE_API_KEY = "";
-  process.env.CAIPE_CLIENT_ID = "";
-  process.env.CAIPE_CLIENT_SECRET = "";
+  // Absent credentials permit an explicitly configured OAuth fallback.
+  delete process.env.CAIPE_TOKEN;
+  delete process.env.CAIPE_API_KEY;
+  delete process.env.CAIPE_CLIENT_ID;
+  delete process.env.CAIPE_CLIENT_SECRET;
 });
 
 afterEach(() => {
   process.env.XDG_CONFIG_HOME = "";
-  process.env.CAIPE_TOKEN = "";
-  process.env.CAIPE_API_KEY = "";
-  process.env.CAIPE_CLIENT_ID = "";
-  process.env.CAIPE_CLIENT_SECRET = "";
+  delete process.env.CAIPE_TOKEN;
+  delete process.env.CAIPE_API_KEY;
+  delete process.env.CAIPE_CLIENT_ID;
+  delete process.env.CAIPE_CLIENT_SECRET;
   if (existsSync(testDir)) {
     rmSync(testDir, { recursive: true, force: true });
   }

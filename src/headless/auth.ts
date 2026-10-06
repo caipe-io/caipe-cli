@@ -7,6 +7,7 @@
  *   3. CAIPE_CLIENT_ID + CAIPE_CLIENT_SECRET  (Client Credentials exchange)
  */
 
+import { AuthRequired, getValidToken } from "../auth/tokens.js";
 import { authEndpoints, getAuthUrl, readSettings } from "../platform/config.js";
 
 export type CredentialType = "jwt" | "apikey" | "client_credentials";
@@ -15,6 +16,50 @@ export interface HeadlessCredentials {
   type: CredentialType;
   /** The Bearer token to use in Authorization: Bearer <token> */
   accessToken: string;
+  expiresAt?: number;
+}
+
+/** Configured credentials fail closed; they never select a different signed-in user. */
+export class CredentialError extends AuthRequired {
+  constructor(message: string) {
+    super(message);
+    this.name = "CredentialError";
+  }
+}
+
+function nonEmptyCredential(value: string, source: string): string {
+  if (!value.trim()) throw new CredentialError(`${source} is configured but empty.`);
+  return value.trim();
+}
+
+/** Shared credential lifecycle for unattended ACP clients and headless commands. */
+export function createTokenProvider(
+  authUrl: string,
+  oauthToken: () => Promise<string> = () => getValidToken(authUrl),
+  tokenFlag?: string,
+  initialCredentials?: HeadlessCredentials,
+): () => Promise<string> {
+  let cached: HeadlessCredentials | null | undefined = initialCredentials;
+  let configured = initialCredentials !== undefined;
+  let pending: Promise<HeadlessCredentials | null> | undefined;
+  return async () => {
+    if (
+      cached === undefined ||
+      (cached?.expiresAt !== undefined && Date.now() >= cached.expiresAt - 60_000)
+    ) {
+      pending ??= resolveHeadlessCredentials(tokenFlag, authUrl);
+      try {
+        const resolved = await pending;
+        if (configured && !resolved)
+          throw new CredentialError("Configured credentials are no longer available.");
+        cached = resolved;
+        configured ||= resolved !== null;
+      } finally {
+        pending = undefined;
+      }
+    }
+    return cached ? cached.accessToken : oauthToken();
+  };
 }
 
 /**
@@ -30,25 +75,32 @@ export async function resolveHeadlessCredentials(
 ): Promise<HeadlessCredentials | null> {
   // 1. --token flag or CAIPE_TOKEN env
   const jwt = tokenFlag ?? process.env.CAIPE_TOKEN;
-  if (jwt && jwt.trim() !== "") {
-    return { type: "jwt", accessToken: jwt.trim() };
+  if (jwt !== undefined) {
+    return { type: "jwt", accessToken: nonEmptyCredential(jwt, "CAIPE_TOKEN / --token") };
   }
 
   // 2. CAIPE_API_KEY or settings.json auth.apiKey
   const apiKey = process.env.CAIPE_API_KEY ?? readSettings().auth?.apiKey;
-  if (apiKey && apiKey.trim() !== "") {
-    return { type: "apikey", accessToken: apiKey.trim() };
+  if (apiKey !== undefined) {
+    return {
+      type: "apikey",
+      accessToken: nonEmptyCredential(apiKey, "CAIPE_API_KEY / auth.apiKey"),
+    };
   }
 
   // 3. Client Credentials (CAIPE_CLIENT_ID + CAIPE_CLIENT_SECRET)
   const clientId = process.env.CAIPE_CLIENT_ID;
   const clientSecret = process.env.CAIPE_CLIENT_SECRET;
-  if (clientId && clientSecret) {
-    const resolvedUrl = authUrl ?? getAuthUrl();
-    const token = await clientCredentialsExchange(clientId, clientSecret, resolvedUrl);
-    if (token) {
-      return { type: "client_credentials", accessToken: token };
+  if (clientId !== undefined || clientSecret !== undefined) {
+    if (clientId === undefined || clientSecret === undefined) {
+      throw new CredentialError("Configure both CAIPE_CLIENT_ID and CAIPE_CLIENT_SECRET.");
     }
+    const resolvedUrl = authUrl ?? getAuthUrl();
+    return clientCredentialsExchange(
+      nonEmptyCredential(clientId, "CAIPE_CLIENT_ID"),
+      nonEmptyCredential(clientSecret, "CAIPE_CLIENT_SECRET"),
+      resolvedUrl,
+    );
   }
 
   return null;
@@ -58,7 +110,7 @@ async function clientCredentialsExchange(
   clientId: string,
   clientSecret: string,
   authUrl: string,
-): Promise<string | null> {
+): Promise<HeadlessCredentials> {
   const ep = authEndpoints(authUrl);
   try {
     const res = await fetch(ep.token, {
@@ -69,14 +121,23 @@ async function clientCredentialsExchange(
         client_id: clientId,
         client_secret: clientSecret,
       }).toString(),
+      signal: AbortSignal.timeout(10_000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) throw new CredentialError(`Client credentials rejected (HTTP ${res.status}).`);
 
     const body = (await res.json()) as Record<string, unknown>;
     const accessToken = body.access_token;
-    return typeof accessToken === "string" ? accessToken : null;
-  } catch {
-    return null;
+    if (typeof accessToken !== "string" || !accessToken.trim()) {
+      throw new CredentialError("Client credentials exchange returned no access token.");
+    }
+    const expiresIn =
+      typeof body.expires_in === "number" && body.expires_in > 0 ? body.expires_in : 300;
+    return { type: "client_credentials", accessToken, expiresAt: Date.now() + expiresIn * 1000 };
+  } catch (error) {
+    if (error instanceof CredentialError) throw error;
+    throw new CredentialError(
+      "Client credentials exchange failed; verify the configured OAuth server.",
+    );
   }
 }
