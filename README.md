@@ -261,6 +261,8 @@ caipe config set auth.idp-hint duo-sso
 | `CAIPE_IDP_HINT` | Keycloak `kc_idp_hint` |
 | `CAIPE_CALLBACK_PORT` | OAuth loopback port (default `8085`; the IdP must register any override) |
 | `CAIPE_TOKEN` | Bearer token (headless / CI) |
+| `CAIPE_CLIENT_ID`, `CAIPE_CLIENT_SECRET` | Renewable service-account connection; obtain short-lived tokens without browser sign-in |
+| `CAIPE_TOKEN_URL` | Token endpoint returned by service-account provisioning; otherwise use OAuth discovery |
 | `CAIPE_KB_URL` | Knowledge Base RAG API base URL |
 | `CAIPE_TENANT_ID` | `X-Tenant-Id` for KB API calls (when not using default tenant) |
 | `CAIPE_API_KEY` | API key where supported |
@@ -308,6 +310,27 @@ caipe chat --headless --prompt "Summarize open incidents"
 caipe chat --headless --prompt-file question.txt --output json
 caipe chat --headless --token "$JWT" --prompt "health check"
 ```
+
+An unattended app connection can use `CAIPE_CLIENT_ID` and
+`CAIPE_CLIENT_SECRET` from its secret provider. Set `CAIPE_AUTH_URL` to its
+OAuth issuer and, when supplied by provisioning, `CAIPE_TOKEN_URL` to the token
+endpoint. The shared credential provider renews short-lived access tokens and
+fails if the admitted credential source changes. A configured company identity
+never falls back to a stored personal API key or browser account.
+
+Discover the current permitted agent references for that same connection with:
+
+```bash
+caipe agents list --refresh --json
+```
+
+This command retrieves all registry pages and fails on incomplete, malformed or
+denied discovery instead of using stale data. The ordinary picker cache is bound
+to both the deployment and credential. Discovery supplies references to existing
+CAIPE definitions; it does not grant access or register agents inside another
+app. App catalog integration should reconcile those references automatically,
+preserve existing conversations, and leave the previous roster unchanged if a
+complete fresh snapshot is unavailable.
 
 ### ACP editor integration
 

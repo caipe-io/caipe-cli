@@ -3,12 +3,14 @@
  *
  * Priority order:
  *   1. --token <jwt> / CAIPE_TOKEN  (JWT pass-through — also accepts OIDC JWTs)
- *   2. CAIPE_API_KEY / settings.json auth.apiKey  (static API key)
- *   3. CAIPE_CLIENT_ID + CAIPE_CLIENT_SECRET  (Client Credentials exchange)
+ *   2. CAIPE_API_KEY (static API key)
+ *   3. CAIPE_CLIENT_ID + CAIPE_CLIENT_SECRET (renewable Client Credentials)
+ *   4. settings.json auth.apiKey (interactive account configuration)
  */
 
 import { AuthRequired, getValidToken } from "../auth/tokens.js";
-import { authEndpoints, getAuthUrl, readSettings } from "../platform/config.js";
+import { getAuthUrl, readSettings } from "../platform/config.js";
+import { discoverAgentConfig, resolveOAuthEndpoints } from "../platform/discovery.js";
 
 export type CredentialType = "jwt" | "apikey" | "client_credentials";
 
@@ -32,6 +34,21 @@ function nonEmptyCredential(value: string, source: string): string {
   return value.trim();
 }
 
+function credentialSource(tokenFlag: string | undefined, authUrl: string): string {
+  if (tokenFlag !== undefined) return "token-flag";
+  if (process.env.CAIPE_TOKEN !== undefined) return "token-env";
+  if (process.env.CAIPE_API_KEY !== undefined) return "api-key-env";
+  if (process.env.CAIPE_CLIENT_ID !== undefined || process.env.CAIPE_CLIENT_SECRET !== undefined) {
+    return JSON.stringify([
+      "client-credentials",
+      process.env.CAIPE_CLIENT_ID,
+      authUrl,
+      process.env.CAIPE_TOKEN_URL,
+    ]);
+  }
+  return readSettings().auth?.apiKey !== undefined ? "stored-api-key" : "oauth";
+}
+
 /** Shared credential lifecycle for unattended ACP clients and headless commands. */
 export function createTokenProvider(
   authUrl: string,
@@ -41,19 +58,31 @@ export function createTokenProvider(
 ): () => Promise<string> {
   let cached: HeadlessCredentials | null | undefined = initialCredentials;
   let configured = initialCredentials !== undefined;
+  let admittedSource = initialCredentials ? credentialSource(tokenFlag, authUrl) : undefined;
   let pending: Promise<HeadlessCredentials | null> | undefined;
   return async () => {
     if (
       cached === undefined ||
       (cached?.expiresAt !== undefined && Date.now() >= cached.expiresAt - 60_000)
     ) {
+      const source = credentialSource(tokenFlag, authUrl);
+      if (admittedSource !== undefined && admittedSource !== source) {
+        throw new CredentialError(
+          "Admitted credential source changed; reconnect with the intended account.",
+        );
+      }
       pending ??= resolveHeadlessCredentials(tokenFlag, authUrl);
       try {
         const resolved = await pending;
         if (configured && !resolved)
           throw new CredentialError("Configured credentials are no longer available.");
+        if (cached && resolved && cached.type !== resolved.type)
+          throw new CredentialError(
+            "Admitted credential type changed; reconnect with the intended account.",
+          );
         cached = resolved;
         configured ||= resolved !== null;
+        if (resolved) admittedSource ??= source;
       } finally {
         pending = undefined;
       }
@@ -79,8 +108,8 @@ export async function resolveHeadlessCredentials(
     return { type: "jwt", accessToken: nonEmptyCredential(jwt, "CAIPE_TOKEN / --token") };
   }
 
-  // 2. CAIPE_API_KEY or settings.json auth.apiKey
-  const apiKey = process.env.CAIPE_API_KEY ?? readSettings().auth?.apiKey;
+  // Explicit worker credentials must win over another account's stored settings.
+  const apiKey = process.env.CAIPE_API_KEY;
   if (apiKey !== undefined) {
     return {
       type: "apikey",
@@ -103,6 +132,14 @@ export async function resolveHeadlessCredentials(
     );
   }
 
+  const storedApiKey = readSettings().auth?.apiKey;
+  if (storedApiKey !== undefined) {
+    return {
+      type: "apikey",
+      accessToken: nonEmptyCredential(storedApiKey, "auth.apiKey"),
+    };
+  }
+
   return null;
 }
 
@@ -111,9 +148,27 @@ async function clientCredentialsExchange(
   clientSecret: string,
   authUrl: string,
 ): Promise<HeadlessCredentials> {
-  const ep = authEndpoints(authUrl);
   try {
-    const res = await fetch(ep.token, {
+    // Service-account provisioning returns the token URL. Otherwise reuse the
+    // normal OIDC discovery path; Keycloak does not expose /oauth/token.
+    const configuredEndpoint = process.env.CAIPE_TOKEN_URL;
+    const tokenEndpoint =
+      configuredEndpoint !== undefined
+        ? nonEmptyCredential(configuredEndpoint, "CAIPE_TOKEN_URL")
+        : resolveOAuthEndpoints(authUrl, await discoverAgentConfig(authUrl), clientId)
+            .tokenEndpoint;
+    const endpoint = new URL(tokenEndpoint);
+    if (
+      !["https:", "http:"].includes(endpoint.protocol) ||
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.hash
+    ) {
+      throw new CredentialError(
+        "CAIPE token endpoint must be an HTTP(S) URL without embedded credentials.",
+      );
+    }
+    const res = await fetch(endpoint.href, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({

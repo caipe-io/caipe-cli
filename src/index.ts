@@ -273,6 +273,7 @@ agentsCmd
   .command("list")
   .description("List available agents")
   .option("--json", "Output JSON array")
+  .option("--refresh", "Fetch the current authorized catalog; fail instead of using stale data")
   .action(async (opts: Record<string, unknown>) => {
     const { runAgentsList } = await import("./agents/commands.js");
     await runAgentsList(opts, program.opts());

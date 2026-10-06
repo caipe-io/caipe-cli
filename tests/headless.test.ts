@@ -18,6 +18,7 @@ beforeEach(() => {
   delete process.env.CAIPE_API_KEY;
   delete process.env.CAIPE_CLIENT_ID;
   delete process.env.CAIPE_CLIENT_SECRET;
+  delete process.env.CAIPE_TOKEN_URL;
 });
 
 afterEach(() => {
@@ -26,6 +27,8 @@ afterEach(() => {
   delete process.env.CAIPE_API_KEY;
   delete process.env.CAIPE_CLIENT_ID;
   delete process.env.CAIPE_CLIENT_SECRET;
+  delete process.env.CAIPE_TOKEN_URL;
+  vi.unstubAllGlobals();
   if (existsSync(testDir)) {
     rmSync(testDir, { recursive: true, force: true });
   }
@@ -99,6 +102,85 @@ describe("resolveHeadlessCredentials", () => {
       expect(creds?.accessToken).toBe("cc-token");
     } finally {
       global.fetch = originalFetch;
+    }
+  });
+
+  it("uses explicit client credentials ahead of a stored API key and discovers Keycloak's token URL", async () => {
+    process.env.CAIPE_CLIENT_ID = "company-client";
+    process.env.CAIPE_CLIENT_SECRET = "company-secret";
+    const { writeSettings } = await import("../src/platform/config");
+    writeSettings({ auth: { apiKey: "another-account-key" } });
+    const issuer = "https://idp.example.test/realms/caipe";
+    const tokenEndpoint = `${issuer}/protocol/openid-connect/token`;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/.well-known/agent.json"))
+        return new Response("not found", { status: 404 });
+      if (url.endsWith("/.well-known/openid-configuration"))
+        return Response.json({ issuer, token_endpoint: tokenEndpoint });
+      expect(url).toBe(tokenEndpoint);
+      expect(String(init?.body)).toContain("client_id=company-client");
+      return Response.json({ access_token: "company-access-token", expires_in: 300 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { resolveHeadlessCredentials } = await import("../src/headless/auth");
+    expect(await resolveHeadlessCredentials(undefined, issuer)).toMatchObject({
+      type: "client_credentials",
+      accessToken: "company-access-token",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not hide incomplete explicit client credentials behind a stored key", async () => {
+    process.env.CAIPE_CLIENT_ID = "company-client";
+    const { writeSettings } = await import("../src/platform/config");
+    writeSettings({ auth: { apiKey: "another-account-key" } });
+    const { resolveHeadlessCredentials } = await import("../src/headless/auth");
+    await expect(resolveHeadlessCredentials()).rejects.toThrow("both CAIPE_CLIENT_ID");
+  });
+
+  it("uses the explicitly supplied provisioning token URL without discovery", async () => {
+    process.env.CAIPE_CLIENT_ID = "company-client";
+    process.env.CAIPE_CLIENT_SECRET = "company-secret";
+    process.env.CAIPE_TOKEN_URL =
+      "https://idp.example.test/realms/caipe/protocol/openid-connect/token";
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: "client-token" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { resolveHeadlessCredentials } = await import("../src/headless/auth");
+    expect(await resolveHeadlessCredentials(undefined, "https://grid.example.test")).toMatchObject({
+      type: "client_credentials",
+      accessToken: "client-token",
+    });
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      process.env.CAIPE_TOKEN_URL,
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("does not renew a company connection as the stored personal account", async () => {
+    process.env.CAIPE_CLIENT_ID = "company-client";
+    process.env.CAIPE_CLIENT_SECRET = "company-secret";
+    process.env.CAIPE_TOKEN_URL = "https://idp.example.test/token";
+    const { writeSettings } = await import("../src/platform/config");
+    writeSettings({ auth: { apiKey: "personal-key" } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ access_token: "company-token", expires_in: 120 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { createTokenProvider } = await import("../src/headless/auth");
+    const fallback = vi.fn(async () => "personal-oauth");
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      const provider = createTokenProvider("https://grid.example.test", fallback);
+      expect(await provider()).toBe("company-token");
+      delete process.env.CAIPE_CLIENT_ID;
+      delete process.env.CAIPE_CLIENT_SECRET;
+      clock.mockReturnValue(now + 61_000);
+      await expect(provider()).rejects.toThrow("Admitted credential source changed");
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(fallback).not.toHaveBeenCalled();
+    } finally {
+      clock.mockRestore();
     }
   });
 });

@@ -703,7 +703,7 @@ describe("shared headless credential lifecycle", () => {
       vi.stubEnv("CAIPE_CLIENT_ID", undefined);
       vi.stubEnv("CAIPE_CLIENT_SECRET", undefined);
       clock.mockReturnValue(now + 61_000);
-      await expect(provider()).rejects.toThrow("Configured credentials are no longer available");
+      await expect(provider()).rejects.toThrow("Admitted credential source changed");
       expect(fallback).not.toHaveBeenCalled();
     } finally {
       clock.mockRestore();
