@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -152,6 +152,154 @@ describe("fetchAgents", () => {
 
     expect(cached.map((agent) => agent.name)).toEqual(["agent-alpha"]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reuse the catalog for another connection credential", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          data: { agents: [{ id: "agent-private", name: "Private", description: "" }], total: 1 },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ success: true, data: { agents: [], total: 0 } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchAgents("https://grid.example.com", async () => "first-account");
+    expect(await fetchAgents("https://grid.example.com", async () => "another-account")).toEqual(
+      [],
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(readFileSync(join(testDir, "caipe/agents-cache.json"), "utf8")).not.toContain(
+      "another-account",
+    );
+  });
+
+  it("refreshes new agents and fails closed instead of returning a stale sync snapshot", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          data: { agents: [{ id: "agent-alpha", name: "Alpha", description: "" }], total: 1 },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          data: { agents: [{ id: "agent-new", name: "New", description: "" }], total: 1 },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchAgents("https://grid.example.com", async () => "token");
+    const fresh = await fetchAgents("https://grid.example.com", async () => "token", {
+      fresh: true,
+    });
+    expect(fresh.map((agent) => agent.name)).toEqual(["agent-new"]);
+    await expect(
+      fetchAgents("https://grid.example.com", async () => "token", { fresh: true }),
+    ).rejects.toThrow("HTTP 503");
+  });
+
+  it.each([401, 403])("does not use an expired cache after HTTP %s", async (status) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json({
+            success: true,
+            data: { agents: [{ id: "agent-private", name: "Private", description: "" }], total: 1 },
+          }),
+        )
+        .mockResolvedValueOnce(new Response("denied", { status })),
+    );
+    await fetchAgents("https://grid.example.com", async () => "token");
+    const path = join(testDir, "caipe/agents-cache.json");
+    const cache = JSON.parse(readFileSync(path, "utf8"));
+    cache.cachedAt = "2020-01-01T00:00:00Z";
+    writeFileSync(path, JSON.stringify(cache));
+    await expect(fetchAgents("https://grid.example.com", async () => "token")).rejects.toThrow(
+      `HTTP ${status}`,
+    );
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it("does not retain a still-fresh cache after an explicit denied refresh", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          data: { agents: [{ id: "agent-private", name: "Private" }], total: 1 },
+        }),
+      )
+      .mockResolvedValue(new Response("denied", { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchAgents("https://grid.example.com", async () => "token");
+    await expect(
+      fetchAgents("https://grid.example.com", async () => "token", { fresh: true }),
+    ).rejects.toThrow("HTTP 403");
+    await expect(fetchAgents("https://grid.example.com", async () => "token")).rejects.toThrow(
+      "HTTP 403",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([null, "", " agent-private "])("rejects malformed native agent ID %s", async (id) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ success: true, data: { agents: [{ id, name: "Private" }], total: 1 } }),
+        ),
+    );
+    await expect(
+      fetchAgents("https://grid.example.com", async () => "token", { fresh: true }),
+    ).rejects.toThrow("invalid agent reference");
+  });
+
+  it("rejects repeated IDs instead of claiming a complete reconciliation snapshot", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () =>
+        Response.json({
+          success: true,
+          data: { agents: [{ id: "agent-private", name: "Private" }], total: 2 },
+        }),
+      ),
+    );
+    await expect(
+      fetchAgents("https://grid.example.com", async () => "token", { fresh: true }),
+    ).rejects.toThrow("repeated an agent");
+    expect(existsSync(join(testDir, "caipe/agents-cache.json"))).toBe(false);
+  });
+
+  it("does not claim a complete fresh catalog when pagination metadata is missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          success: true,
+          data: { agents: [{ id: "agent-private", name: "Private" }] },
+        }),
+      ),
+    );
+    await expect(
+      fetchAgents("https://grid.example.com", async () => "token", { fresh: true }),
+    ).rejects.toThrow("complete paginated registry snapshot");
+  });
+
+  it("rejects a failed registry response instead of treating it as an empty catalog", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(Response.json({ success: false, error: "denied" })),
+    );
+    await expect(
+      fetchAgents("https://grid.example.com", async () => "token", { fresh: true }),
+    ).rejects.toThrow("invalid catalog response");
   });
 
   it("fails when pagination stops making progress", async () => {

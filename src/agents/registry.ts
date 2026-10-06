@@ -5,7 +5,8 @@
  * Cache: ~/.config/caipe/agents-cache.json (5-minute TTL).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import {
   agentsCachePath,
   authEndpoints,
@@ -22,6 +23,7 @@ interface CachedAgents {
   agents: Agent[];
   cachedAt: string;
   serverUrl: string;
+  credentialFingerprint: string;
 }
 
 interface AgentPickerEntry {
@@ -56,29 +58,36 @@ export interface ValidationResult {
 export async function fetchAgents(
   serverUrl: string,
   getToken: () => Promise<string>,
+  options: { fresh?: boolean } = {},
 ): Promise<Agent[]> {
-  const cached = readCache(serverUrl);
-  if (cached && Date.now() - Date.parse(cached.cachedAt) < CACHE_TTL_MS) {
+  // A shared host may use different company/user connections. Never reuse a
+  // catalog across credentials, including legacy caches without a binding.
+  const token = await getToken();
+  const fingerprint = createHash("sha256").update(token).digest("hex");
+  const cached = readCache(serverUrl, fingerprint);
+  if (!options.fresh && cached && Date.now() - Date.parse(cached.cachedAt) < CACHE_TTL_MS) {
     return cached.agents;
   }
 
   try {
     const ep = authEndpoints(serverUrl);
-    const token = await getToken();
-    const pickerEntries = await fetchAllAgentPages(ep.agents, token);
+    const pickerEntries = await fetchAllAgentPages(ep.agents, token, options.fresh === true);
     const agents: Agent[] = pickerEntries.map((e) => ({
       name: e.id,
       displayName: e.name || e.id,
-      description: e.description,
+      description: typeof e.description === "string" ? e.description : "",
       endpoint: "",
       protocols: ["agui"],
       available: true,
       domain: "general",
     }));
-    writeCache(serverUrl, agents);
+    writeCache(serverUrl, fingerprint, agents);
     return agents;
   } catch (err) {
-    if (cached) {
+    if (err instanceof RegistryAccessDenied && cached) {
+      rmSync(agentsCachePath(), { force: true });
+    }
+    if (!options.fresh && cached && !(err instanceof RegistryAccessDenied)) {
       process.stderr.write(
         `[WARNING] Could not reach agents registry (${String(err)}). Using cached list.\n`,
       );
@@ -88,8 +97,16 @@ export async function fetchAgents(
   }
 }
 
-async function fetchAllAgentPages(endpoint: string, token: string): Promise<AgentPickerEntry[]> {
+class RegistryAccessDenied extends Error {}
+
+async function fetchAllAgentPages(
+  endpoint: string,
+  token: string,
+  requirePagination: boolean,
+): Promise<AgentPickerEntry[]> {
   const entries: AgentPickerEntry[] = [];
+  const ids = new Set<string>();
+  let snapshotTotal: number | undefined;
 
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const url = new URL(endpoint);
@@ -102,12 +119,46 @@ async function fetchAllAgentPages(endpoint: string, token: string): Promise<Agen
     });
 
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+      const ErrorType = [401, 403].includes(res.status) ? RegistryAccessDenied : Error;
+      throw new ErrorType(`HTTP ${res.status}`);
     }
 
     const body = (await res.json()) as AgentPickerResponse;
-    const pageEntries = body.data?.agents ?? [];
+    if (body.success !== true || !Array.isArray(body.data?.agents)) {
+      throw new Error("Agents registry returned an invalid catalog response");
+    }
+    const pageEntries = body.data.agents;
     const total = body.data?.total;
+    if (requirePagination && total === undefined) {
+      throw new Error("Fresh agent discovery requires a complete paginated registry snapshot");
+    }
+    if (total !== undefined && (!Number.isSafeInteger(total) || total < 0)) {
+      throw new Error("Agents registry returned invalid pagination metadata");
+    }
+    if (snapshotTotal !== undefined && total !== snapshotTotal) {
+      throw new Error("Agents registry changed during pagination; retry discovery");
+    }
+    snapshotTotal ??= total;
+    if (body.data.page !== undefined && body.data.page !== page) {
+      throw new Error("Agents registry returned an unexpected page");
+    }
+    for (const entry of pageEntries) {
+      if (
+        !entry ||
+        typeof entry.id !== "string" ||
+        !entry.id.trim() ||
+        entry.id.trim() !== entry.id ||
+        entry.id.includes("\0") ||
+        typeof entry.name !== "string"
+      ) {
+        throw new Error("Agents registry returned an invalid agent reference");
+      }
+      if (ids.has(entry.id)) throw new Error("Agents registry repeated an agent across pages");
+      ids.add(entry.id);
+    }
+    if (typeof total === "number" && entries.length + pageEntries.length > total) {
+      throw new Error("Agents registry returned more agents than its reported total");
+    }
     entries.push(...pageEntries);
 
     // Older servers may omit pagination metadata. In that case, preserve the
@@ -224,13 +275,14 @@ export function validateProtocol(agent: Agent): ValidationResult {
 // Cache helpers
 // ---------------------------------------------------------------------------
 
-function readCache(serverUrl: string): CachedAgents | null {
+function readCache(serverUrl: string, credentialFingerprint: string): CachedAgents | null {
   const path = agentsCachePath();
   if (!existsSync(path)) return null;
   try {
     const cached = JSON.parse(readFileSync(path, "utf8")) as Partial<CachedAgents>;
     if (
       cached.serverUrl !== serverUrl ||
+      cached.credentialFingerprint !== credentialFingerprint ||
       typeof cached.cachedAt !== "string" ||
       !Array.isArray(cached.agents)
     ) {
@@ -242,13 +294,14 @@ function readCache(serverUrl: string): CachedAgents | null {
   }
 }
 
-function writeCache(serverUrl: string, agents: Agent[]): void {
+function writeCache(serverUrl: string, credentialFingerprint: string, agents: Agent[]): void {
   const dir = globalConfigDir();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const cached: CachedAgents = {
     agents,
     cachedAt: new Date().toISOString(),
     serverUrl,
+    credentialFingerprint,
   };
   writeFileSync(agentsCachePath(), `${JSON.stringify(cached, null, 2)}\n`, "utf8");
 }

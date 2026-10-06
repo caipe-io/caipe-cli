@@ -54,13 +54,13 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 // Internal read/write
 // ---------------------------------------------------------------------------
 
-function readCache(): (AgentConfig & { _cachedAt: string }) | null {
+function readCache(serverUrl: string): (AgentConfig & { _cachedAt: string }) | null {
   const p = agentConfigPath();
   if (!existsSync(p)) return null;
   try {
     const raw = readFileSync(p, "utf8");
-    const parsed = JSON.parse(raw) as AgentConfig & { _cachedAt?: string };
-    if (!parsed._cachedAt) return null;
+    const parsed = JSON.parse(raw) as AgentConfig & { _cachedAt?: string; _sourceUrl?: string };
+    if (!parsed._cachedAt || parsed._sourceUrl !== serverUrl) return null;
     if (Date.now() - new Date(parsed._cachedAt).getTime() > CACHE_TTL_MS) return null;
     return parsed as AgentConfig & { _cachedAt: string };
   } catch {
@@ -68,10 +68,10 @@ function readCache(): (AgentConfig & { _cachedAt: string }) | null {
   }
 }
 
-function writeCache(config: AgentConfig): void {
+function writeCache(serverUrl: string, config: AgentConfig): void {
   const dir = globalConfigDir();
   mkdirSync(dir, { recursive: true });
-  const entry = { ...config, _cachedAt: new Date().toISOString() };
+  const entry = { ...config, _sourceUrl: serverUrl, _cachedAt: new Date().toISOString() };
   writeFileSync(agentConfigPath(), JSON.stringify(entry, null, 2));
 }
 
@@ -89,7 +89,7 @@ function writeCache(config: AgentConfig): void {
  * to conventional /oauth/* paths.
  */
 export async function discoverAgentConfig(serverUrl: string): Promise<AgentConfig> {
-  const cached = readCache();
+  const cached = readCache(serverUrl);
   if (cached) return cached;
 
   // Try caipe-specific agent.json first
@@ -98,7 +98,7 @@ export async function discoverAgentConfig(serverUrl: string): Promise<AgentConfi
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const json = (await res.json()) as AgentConfig;
-      writeCache(json);
+      writeCache(serverUrl, json);
       return json;
     }
   } catch {
@@ -119,7 +119,7 @@ export async function discoverAgentConfig(serverUrl: string): Promise<AgentConfi
           device_authorization_endpoint: oidc.device_authorization_endpoint as string | undefined,
         },
       };
-      writeCache(config);
+      writeCache(serverUrl, config);
       return config;
     }
   } catch {
