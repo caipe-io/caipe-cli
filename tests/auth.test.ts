@@ -223,14 +223,17 @@ describe("loginDevice polling behavior", () => {
   it("authorization_pending × 2 then access_token → success", async () => {
     const { loginDevice } = await import("../src/auth/oauth");
     let callCount = 0;
+    let deviceRequest: URLSearchParams | undefined;
+    const tokenRequests: URLSearchParams[] = [];
 
     const originalFetch = global.fetch;
-    global.fetch = vi.fn((url: string) => {
+    global.fetch = vi.fn((url: string, options?: RequestInit) => {
       const u = String(url);
       const discovery = discoveryMiss(u);
       if (discovery) return discovery;
       // Device code request
       if (u.includes("/oauth/device/code")) {
+        deviceRequest = new URLSearchParams(String(options?.body));
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -245,6 +248,7 @@ describe("loginDevice polling behavior", () => {
         );
       }
       // Token poll
+      tokenRequests.push(new URLSearchParams(String(options?.body)));
       callCount++;
       if (callCount <= 2) {
         return Promise.resolve(
@@ -271,6 +275,106 @@ describe("loginDevice polling behavior", () => {
       const stored = await loadTokens();
       expect(stored?.accessToken).toBe("device_access");
       expect(callCount).toBe(3);
+      expect(deviceRequest?.get("client_id")).toBe(CLIENT_ID);
+      expect(deviceRequest?.get("code_challenge_method")).toBe("S256");
+      expect(deviceRequest?.has("code_verifier")).toBe(false);
+      const verifier = tokenRequests[0]?.get("code_verifier") ?? "";
+      expect(verifier).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
+      expect(deviceRequest?.get("code_challenge")).toBe(
+        createHash("sha256").update(verifier).digest("base64url"),
+      );
+      for (const request of tokenRequests) {
+        expect(request.get("code_verifier")).toBe(verifier);
+        expect(request.get("device_code")).toBe("device_code_abc");
+        expect(request.get("client_id")).toBe(CLIENT_ID);
+        expect(request.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:device_code");
+      }
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it.each([
+    [
+      JSON.stringify({
+        error: "invalid_request",
+        error_description: "Missing parameter: code_challenge_method",
+      }),
+      "Device code request failed (400): invalid_request: Missing parameter: code_challenge_method",
+    ],
+    [
+      JSON.stringify({ error: "unauthorized_client" }),
+      "Device code request failed (400): unauthorized_client",
+    ],
+    ["Bad Request", "Device code request failed (400)"],
+  ])("reports device request errors without polling (%s)", async (body, message) => {
+    const { loginDevice } = await import("../src/auth/oauth");
+    const fetchMock = vi.fn((url: string) => {
+      const discovery = discoveryMiss(String(url));
+      if (discovery) return discovery;
+      return Promise.resolve(new Response(body, { status: 400 }));
+    });
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock as unknown as typeof fetch;
+    try {
+      await expect(loginDevice(SERVER_URL, CLIENT_ID)).rejects.toThrow(message);
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/oauth/token"))).toBe(
+        false,
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("uses a fresh PKCE pair for each login and reports token poll errors", async () => {
+    const { loginDevice } = await import("../src/auth/oauth");
+    const challenges: string[] = [];
+    const verifiers: string[] = [];
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn((url: string, options?: RequestInit) => {
+      const u = String(url);
+      const discovery = discoveryMiss(u);
+      if (discovery) return discovery;
+      const request = new URLSearchParams(String(options?.body));
+      if (u.includes("/oauth/device/code")) {
+        challenges.push(request.get("code_challenge") ?? "");
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              device_code: "dc",
+              user_code: "TEST-1234",
+              verification_uri: "https://caipe.test/activate",
+              expires_in: 300,
+              interval: 0,
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      verifiers.push(request.get("code_verifier") ?? "");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            error: "invalid_grant",
+            error_description: "PKCE verification failed",
+          }),
+          { status: 400 },
+        ),
+      );
+    }) as unknown as typeof fetch;
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await expect(loginDevice(SERVER_URL, CLIENT_ID)).rejects.toThrow(
+          "Token poll error (400): invalid_grant: PKCE verification failed",
+        );
+        expect(challenges[attempt]).toBe(
+          createHash("sha256")
+            .update(verifiers[attempt] ?? "")
+            .digest("base64url"),
+        );
+      }
+      expect(verifiers[0]).not.toBe(verifiers[1]);
+      expect(challenges[0]).not.toBe(challenges[1]);
     } finally {
       global.fetch = originalFetch;
     }

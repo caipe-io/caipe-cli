@@ -478,6 +478,13 @@ interface TokenErrorResponse {
   error_description?: string;
 }
 
+function oauthErrorDetail(body: TokenErrorResponse): string {
+  const detail = [body.error, body.error_description]
+    .filter((value) => typeof value === "string" && value.length > 0)
+    .join(": ");
+  return detail ? `: ${detail}` : "";
+}
+
 /**
  * RFC 8628 Device Authorization Grant.
  *
@@ -491,6 +498,7 @@ interface TokenErrorResponse {
  */
 export async function loginDevice(serverUrl: string, clientId: string): Promise<TokenSet> {
   const ep = await getOAuthEndpoints(serverUrl, clientId);
+  const { verifier, challenge } = generatePKCE();
 
   // Step 1: request device code
   let dcRes: Response;
@@ -498,7 +506,11 @@ export async function loginDevice(serverUrl: string, clientId: string): Promise<
     dcRes = await fetch(ep.deviceAuthorizationEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ client_id: ep.clientId }).toString(),
+      body: new URLSearchParams({
+        client_id: ep.clientId,
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+      }).toString(),
     });
   } catch (err) {
     throw new Error(`Device auth request failed: ${String(err)}`);
@@ -519,7 +531,7 @@ export async function loginDevice(serverUrl: string, clientId: string): Promise<
       );
       process.exit(1);
     }
-    throw new Error(`Device code request failed (${dcRes.status})`);
+    throw new Error(`Device code request failed (${dcRes.status})${oauthErrorDetail(body)}`);
   }
 
   const dc = (await dcRes.json()) as DeviceCodeResponse;
@@ -554,6 +566,7 @@ export async function loginDevice(serverUrl: string, clientId: string): Promise<
           grant_type: "urn:ietf:params:oauth:grant-type:device_code",
           device_code: dc.device_code,
           client_id: ep.clientId,
+          code_verifier: verifier,
         }).toString(),
       });
     } catch {
@@ -603,7 +616,7 @@ export async function loginDevice(serverUrl: string, clientId: string): Promise<
         break;
 
       default:
-        throw new Error(`Token poll error (${tokenRes.status}): ${errBody.error ?? "unknown"}`);
+        throw new Error(`Token poll error (${tokenRes.status})${oauthErrorDetail(errBody)}`);
     }
   }
 
