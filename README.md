@@ -362,6 +362,11 @@ caipe auth login --manual      # paste authorization code
 caipe auth logout
 ```
 
+**Device login:** Use `caipe auth login --device` in remote terminals without a local
+browser callback. The OAuth client must have device authorization enabled. The CLI
+sends an S256 PKCE challenge and the matching verifier when polling, so servers
+that require PKCE can accept this flow.
+
 **OAuth browser:** By default the CLI opens Chrome/Chromium with a **temporary profile** so logging in does not overwrite cookies for an open caipe-ui tab. Set `CAIPE_CHROMIUM_PATH` if Chrome is non-standard. `CAIPE_AUTH_BROWSER=system` restores the old behavior. `CAIPE_AUTH_HEADLESS=1` uses headless mode (often breaks MFA).
 
 ### Knowledge Base (scripts / CI)
