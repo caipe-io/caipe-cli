@@ -35,5 +35,21 @@ export async function runAcp(
   const output = Writable.toWeb(process.stdout);
   const input = Readable.toWeb(process.stdin);
   const connection = bridge.createApp().connect(acp.ndJsonStream(output, input));
-  await connection.closed;
+  const onSignal = () => {
+    void bridge.close().finally(() => process.stdin.destroy());
+  };
+  const onEof = () => {
+    void bridge.close();
+  };
+  process.once("SIGTERM", onSignal);
+  process.once("SIGINT", onSignal);
+  process.stdin.once("end", onEof);
+  try {
+    await connection.closed;
+  } finally {
+    await bridge.close();
+    process.off("SIGTERM", onSignal);
+    process.off("SIGINT", onSignal);
+    process.stdin.off("end", onEof);
+  }
 }

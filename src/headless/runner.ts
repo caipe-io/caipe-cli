@@ -13,7 +13,7 @@ import { buildSystemContext } from "../chat/context.js";
 import { createSession } from "../chat/history.js";
 import { createAdapter } from "../chat/stream.js";
 import { authEndpoints, getAuthUrl, getServerUrl } from "../platform/config.js";
-import { resolveHeadlessCredentials } from "./auth.js";
+import { CredentialError, createTokenProvider, resolveHeadlessCredentials } from "./auth.js";
 import { type OutputFormat, createOutputWriter } from "./output.js";
 
 export interface HeadlessOpts {
@@ -56,7 +56,14 @@ export async function runHeadless(opts: HeadlessOpts): Promise<void> {
     process.exit(1);
   }
 
-  const getToken = async () => credentials.accessToken;
+  const getToken = createTokenProvider(
+    authUrl,
+    async () => {
+      throw new CredentialError("No credentials configured for headless mode.");
+    },
+    opts.token,
+    credentials,
+  );
 
   let resolvedAgent: Agent;
   try {
@@ -67,13 +74,14 @@ export async function runHeadless(opts: HeadlessOpts): Promise<void> {
   }
 
   const ep = authEndpoints(serverUrl);
-  const adapter = createAdapter(resolvedAgent, ep.streamStart, getToken);
+  const adapter = createAdapter(resolvedAgent, ep.streamStart, getToken, { clientUser: {} });
   const writer = createOutputWriter(opts.output);
 
   const cwd = process.cwd();
   const systemContext = await buildSystemContext(cwd, opts.noContext ?? false, {
     serverUrl,
     getToken,
+    user: {},
   });
   const session = createSession({
     agentName: resolvedAgent.name,

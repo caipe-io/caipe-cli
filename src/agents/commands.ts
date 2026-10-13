@@ -5,7 +5,8 @@
 import { render } from "ink";
 import React from "react";
 import { getValidToken } from "../auth/tokens.js";
-import { getAuthUrl, getServerUrl } from "../platform/config.js";
+import { createTokenProvider } from "../headless/auth.js";
+import { ServerNotConfigured, getAuthUrl, getServerUrl } from "../platform/config.js";
 import { AgentList } from "./List.js";
 import { fetchAgents, getAgent } from "./registry.js";
 
@@ -14,13 +15,24 @@ interface GlobalOpts {
   json?: boolean;
 }
 
+function registryConnection(globalOpts: GlobalOpts) {
+  const serverUrl = getServerUrl(globalOpts.url);
+  let authUrl: string;
+  try {
+    authUrl = getAuthUrl(globalOpts.url);
+  } catch (error) {
+    if (!(error instanceof ServerNotConfigured)) throw error;
+    authUrl = serverUrl;
+  }
+  return { serverUrl, getToken: createTokenProvider(authUrl, () => getValidToken(authUrl)) };
+}
+
 export async function runAgentsList(
-  opts: { json?: boolean },
+  opts: { json?: boolean; refresh?: boolean },
   globalOpts: GlobalOpts,
 ): Promise<void> {
-  const serverUrl = getServerUrl(globalOpts.url);
-  const authUrl = getAuthUrl(globalOpts.url);
-  const agents = await fetchAgents(serverUrl, () => getValidToken(authUrl));
+  const { serverUrl, getToken } = registryConnection(globalOpts);
+  const agents = await fetchAgents(serverUrl, getToken, { fresh: opts.refresh });
 
   const useJson = opts.json ?? globalOpts.json;
 
@@ -30,6 +42,7 @@ export async function runAgentsList(
         agents.map((a) => ({
           name: a.name,
           displayName: a.displayName,
+          description: a.description,
           domain: a.domain,
           protocols: a.protocols,
           available: a.available,
@@ -55,9 +68,8 @@ export async function runAgentsList(
 }
 
 export async function runAgentsInfo(name: string, globalOpts: GlobalOpts): Promise<void> {
-  const serverUrl = getServerUrl(globalOpts.url);
-  const authUrl = getAuthUrl(globalOpts.url);
-  const agents = await fetchAgents(serverUrl, () => getValidToken(authUrl));
+  const { serverUrl, getToken } = registryConnection(globalOpts);
+  const agents = await fetchAgents(serverUrl, getToken);
   const agent = getAgent(agents, name);
 
   if (!agent) {

@@ -19,7 +19,12 @@ function dependencies(
     getValidToken: async () => "token",
     resolveSessionAgent: async () => TEST_AGENT,
     buildSystemContext: async (cwd) => `context:${cwd}`,
-    createAdapter: () => adapterFactory(),
+    createAdapter: () => ({
+      ...adapterFactory(),
+      createConversation: async () => `conversation-${++nextId}`,
+      loadConversation: async (conversationId) => ({ conversationId, messages: [] }),
+      cancelConversation: async () => true,
+    }),
     randomUUID: () => `id-${++nextId}`,
     ...overrides,
   };
@@ -60,7 +65,7 @@ describe("CAIPE ACP agent", () => {
     expect(result.withoutTerminal).toMatchObject({
       protocolVersion: acp.PROTOCOL_VERSION,
       agentCapabilities: {
-        loadSession: false,
+        loadSession: true,
         promptCapabilities: {},
       },
       agentInfo: { name: "caipe-cli", title: "CAIPE", version: "1.2.3" },

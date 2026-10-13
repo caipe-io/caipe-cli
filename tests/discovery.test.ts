@@ -1,5 +1,50 @@
-import { describe, expect, it } from "vitest";
-import { heuristicAuthIssuerCandidates, oauthIssuerFromConfig } from "../src/platform/discovery.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import {
+  discoverAgentConfig,
+  heuristicAuthIssuerCandidates,
+  oauthIssuerFromConfig,
+} from "../src/platform/discovery.js";
+
+describe("discovery cache isolation", () => {
+  it("never supplies one connection's OAuth endpoint to another deployment", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "caipe-issuer-cache-"));
+    const previous = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = dir;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          oauth: {
+            token_endpoint: "https://idp-first.example.test/token",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ oauth: { token_endpoint: "https://idp-second.example.test/token" } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      expect((await discoverAgentConfig("https://first.example.test")).oauth?.token_endpoint).toBe(
+        "https://idp-first.example.test/token",
+      );
+      expect((await discoverAgentConfig("https://second.example.test")).oauth?.token_endpoint).toBe(
+        "https://idp-second.example.test/token",
+      );
+      expect((await discoverAgentConfig("https://second.example.test")).oauth?.token_endpoint).toBe(
+        "https://idp-second.example.test/token",
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previous === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previous;
+      vi.unstubAllGlobals();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("oauthIssuerFromConfig", () => {
   it("returns explicit issuer when present", () => {

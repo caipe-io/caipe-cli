@@ -12,7 +12,10 @@
  */
 // assisted-by claude code claude-sonnet-4-6
 
+import { randomUUID } from "node:crypto";
 import type { Agent } from "../agents/types.js";
+import { AuthRequired } from "../auth/tokens.js";
+import type { ClientUserContext } from "./context.js";
 import { clientUserFromTokenSet, formatClientContextBlock } from "./context.js";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +55,8 @@ export interface ErrorEvent {
 export interface InterruptedEvent {
   type: "interrupted";
   reason?: string;
+  /** Complete server payload, including form schema and every tool approval. */
+  interrupt?: Record<string, unknown>;
 }
 
 export interface ToolEvent {
@@ -111,6 +116,16 @@ export interface SendPayload {
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   /** Cancels conversation creation and the active AG-UI stream. */
   signal?: AbortSignal;
+  /** Explicit native HITL response; sent to stream/resume instead of starting a turn. */
+  resumeData?: Record<string, unknown>;
+  /** One canonical assistant row across an initial stream and immediate approval resumes. */
+  transcript?: TranscriptTurn;
+}
+
+export interface TranscriptTurn {
+  id: string;
+  content: string;
+  events: Array<Record<string, unknown>>;
 }
 
 export interface ConversationEvent {
@@ -125,25 +140,23 @@ export interface StreamAdapter {
   connect(payload: SendPayload): AsyncIterable<StreamEvent>;
 }
 
-function conversationCreateError(status: number, bodyText: string, agentId: string): Error {
-  try {
-    const body = JSON.parse(bodyText) as { code?: string; error?: string; reason?: string };
-    if (status === 403 && body.code === "agent#use") {
-      return new Error(
-        `Permission denied for agent "${agentId}" (OpenFGA agent#use). Run \`caipe agents list\` and use \`caipe chat --agent <id>\` for an agent you can access, or ask an admin to grant use on this agent.`,
-      );
-    }
-    if (body.error) {
-      return new Error(`Failed to create conversation (${status}): ${body.error}`);
-    }
-  } catch {
-    /* fall through */
-  }
-  return new Error(`Failed to create conversation (${status}): ${bodyText}`);
+export interface ConversationHistoryMessage {
+  _id?: string;
+  role: "user" | "assistant" | "system";
+  content: string;
 }
 
-function shouldTryNextClientType(status: number, bodyText: string): boolean {
-  return status === 400 && bodyText.includes("Invalid client_type");
+export interface LoadedConversation {
+  conversationId: string;
+  messages: ConversationHistoryMessage[];
+  interrupt?: Record<string, unknown>;
+}
+
+/** The existing BFF owns identity, access checks, conversation IDs and native state. */
+export interface ConversationAdapter extends StreamAdapter {
+  createConversation(signal?: AbortSignal): Promise<string>;
+  loadConversation(conversationId: string, signal?: AbortSignal): Promise<LoadedConversation>;
+  cancelConversation(conversationId: string): Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,9 +173,13 @@ function shouldTryNextClientType(status: number, bodyText: string): boolean {
 export interface AdapterOptions {
   /** Pre-seed sessionId → BFF conversation _id (from saved session on resume). */
   conversationIds?: Record<string, string>;
+  /** Explicitly use {} for headless callers; never borrow another user's stored OAuth identity. */
+  clientUser?: ClientUserContext;
+  /** ACP clients write their own turns through the same message upsert API as the browser. */
+  persistHistory?: boolean;
 }
 
-export class AguiAdapter implements StreamAdapter {
+export class AguiAdapter implements ConversationAdapter {
   // Maps local sessionId → server-assigned conversation _id
   private readonly conversationIds = new Map<string, string>();
 
@@ -171,13 +188,121 @@ export class AguiAdapter implements StreamAdapter {
     /** Full URL of the stream endpoint (e.g. http://localhost:3000/api/v1/chat/stream/start) */
     private readonly streamEndpoint: string,
     private readonly getAccessToken: () => Promise<string>,
-    options?: AdapterOptions,
+    private readonly options?: AdapterOptions,
   ) {
     if (options?.conversationIds) {
       for (const [sessionId, id] of Object.entries(options.conversationIds)) {
         this.conversationIds.set(sessionId, id);
       }
     }
+  }
+
+  private get baseUrl(): string {
+    return this.streamEndpoint.replace(/\/api\/v1\/chat\/stream\/start$/, "");
+  }
+
+  private async requestJson(
+    path: string,
+    options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+    accessToken?: string,
+  ): Promise<Record<string, unknown>> {
+    const token = accessToken ?? (await this.getAccessToken());
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: options.method ?? "GET",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: options.signal ?? AbortSignal.timeout(10_000),
+    });
+    if (response.status === 401)
+      throw new AuthRequired("CAIPE rejected the configured credentials (HTTP 401).");
+    if (!response.ok) {
+      if (response.status === 403) {
+        const error = (await response.json().catch(() => undefined)) as
+          | { code?: string }
+          | undefined;
+        if (error?.code === "agent#use")
+          throw new Error(
+            `Permission denied for agent "${this.agent.name}". Run \`caipe agents list\` or ask an administrator to grant agent use.`,
+          );
+      }
+      throw new Error(`CAIPE conversation request failed (HTTP ${response.status}).`);
+    }
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  async createConversation(signal?: AbortSignal): Promise<string> {
+    const token = await this.getAccessToken();
+    return this.ensureConversation(randomUUID(), this.agent.name, token, undefined, signal);
+  }
+
+  async loadConversation(
+    conversationId: string,
+    signal?: AbortSignal,
+  ): Promise<LoadedConversation> {
+    const path = `/api/chat/conversations/${encodeURIComponent(conversationId)}`;
+    const result = await this.requestJson(path, { signal });
+    const conversation = result.data as Record<string, unknown> | undefined;
+    const participants = conversation?.participants as
+      | Array<{ type: string; id: string }>
+      | undefined;
+    const agentIds = participants?.filter((p) => p.type === "agent").map((p) => p.id) ?? [];
+    if (
+      conversation?._id !== conversationId ||
+      !["owner", "shared"].includes(String(conversation.access_level)) ||
+      conversation.source === "autonomous" ||
+      agentIds.length !== 1 ||
+      agentIds[0] !== this.agent.name
+    ) {
+      throw new Error(
+        "This conversation is not writable by the current caller for the selected agent.",
+      );
+    }
+
+    const messages: ConversationHistoryMessage[] = [];
+    let completed = false;
+    for (let page = 1; page <= 100; page++) {
+      const history = await this.requestJson(`${path}/messages?page=${page}&page_size=100`, {
+        signal,
+      });
+      const data = history.data as
+        | { items?: ConversationHistoryMessage[]; has_more?: boolean }
+        | undefined;
+      if (!Array.isArray(data?.items))
+        throw new Error("CAIPE returned an invalid conversation history.");
+      messages.push(...data.items);
+      if (!data.has_more) {
+        completed = true;
+        break;
+      }
+    }
+    if (!completed)
+      throw new Error("Conversation history exceeds the ACP replay limit; open it in CAIPE.");
+
+    const state = await this.requestJson(
+      `/api/dynamic-agents/conversations/${encodeURIComponent(conversationId)}/interrupt-state?agent_id=${encodeURIComponent(this.agent.name)}`,
+      { signal },
+    );
+    const nativeInterrupt = state.has_pending_interrupt
+      ? (state.interrupt_data as Record<string, unknown> | undefined)
+      : undefined;
+    const interrupt = nativeInterrupt
+      ? {
+          id: nativeInterrupt.interrupt_id,
+          reason: nativeInterrupt.type === "tool_approval" ? "tool_approval" : "human_input",
+          payload: nativeInterrupt,
+        }
+      : undefined;
+    this.conversationIds.set(conversationId, conversationId);
+    return { conversationId, messages, interrupt };
+  }
+
+  async cancelConversation(conversationId: string): Promise<boolean> {
+    const result = await this.requestJson("/api/v1/chat/stream/cancel", {
+      method: "POST",
+      body: { conversation_id: conversationId, agent_id: this.agent.name },
+      signal: AbortSignal.timeout(5_000),
+    });
+    return result.cancelled === true;
   }
 
   /**
@@ -198,55 +323,25 @@ export class AguiAdapter implements StreamAdapter {
     const cached = this.conversationIds.get(sessionId);
     if (cached) return cached;
 
-    // Derive conversations URL from stream endpoint:
-    // http://localhost:3000/api/v1/chat/stream/start → http://localhost:3000/api/chat/conversations
-    const base = this.streamEndpoint.replace(/\/api\/v1\/chat\/stream\/start$/, "");
-    const url = `${base}/api/chat/conversations`;
-
-    try {
-      const attempts: Array<{ client_type: "slack" | "cli"; metadata: Record<string, unknown> }> = [
-        { client_type: "slack", metadata: { source: "caipe-cli", bridged_as: "slack" } },
-        { client_type: "cli", metadata: { source: "caipe-cli" } },
-      ];
-      let res: Response | undefined;
-      let lastError = "";
-
-      for (const attempt of attempts) {
-        res = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            title: "CLI session",
-            client_type: attempt.client_type,
-            agent_id: agentId,
-            metadata: attempt.metadata,
-          }),
-          signal,
-        });
-        if (res.ok) break;
-
-        const text = await res.text().catch(() => "");
-        lastError = text;
-        if (shouldTryNextClientType(res.status, text)) continue;
-        throw conversationCreateError(res.status, text, agentId);
-      }
-
-      if (!res?.ok) {
-        throw conversationCreateError(res?.status ?? 0, lastError, agentId);
-      }
-      const json = (await res.json()) as { data?: { conversation?: { _id?: string } } };
-      const serverId = json?.data?.conversation?._id;
-      if (!serverId) throw new Error("Server did not return conversation _id");
-      this.conversationIds.set(sessionId, serverId);
-      return serverId;
-    } catch (err) {
-      throw new Error(
-        `Conversation setup failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    const json = await this.requestJson(
+      "/api/chat/conversations",
+      {
+        method: "POST",
+        signal,
+        body: {
+          title: "CLI session",
+          client_type: "api",
+          agent_id: agentId,
+          metadata: { source: "caipe-cli" },
+        },
+      },
+      token,
+    );
+    const data = json.data as { conversation?: { _id?: string } } | undefined;
+    const serverId = data?.conversation?._id;
+    if (!serverId) throw new Error("Server did not return a conversation ID.");
+    this.conversationIds.set(sessionId, serverId);
+    return serverId;
   }
 
   async *connect(payload: SendPayload): AsyncIterable<StreamEvent> {
@@ -269,9 +364,29 @@ export class AguiAdapter implements StreamAdapter {
 
     yield { type: "conversation", conversationId };
 
+    const transcript = payload.transcript ?? { id: randomUUID(), content: "", events: [] };
+    const historyPath = `/api/chat/conversations/${encodeURIComponent(conversationId)}/messages`;
+    if (this.options?.persistHistory && payload.resumeData === undefined) {
+      await this.requestJson(historyPath, {
+        method: "POST",
+        signal: payload.signal,
+        body: {
+          message_id: `${transcript.id}-user`,
+          role: "user",
+          content: payload.prompt,
+          metadata: {
+            turn_id: transcript.id,
+            source: "caipe-cli",
+            agent_id: agentId,
+            is_final: true,
+          },
+        },
+      });
+    }
+
     const userText = payload.prompt.trim();
     const { loadTokens } = await import("../auth/keychain.js");
-    const sessionUser = clientUserFromTokenSet(await loadTokens());
+    const sessionUser = this.options?.clientUser ?? clientUserFromTokenSet(await loadTokens());
     const withClock = userText.includes("<client-context>")
       ? userText
       : `${formatClientContextBlock({ user: sessionUser })}\n\n${userText}`;
@@ -285,10 +400,18 @@ export class AguiAdapter implements StreamAdapter {
     };
     const ctx = payload.systemContext?.trim();
     if (ctx) bodyObj.context = ctx;
+    if (payload.resumeData !== undefined) {
+      delete bodyObj.message;
+      bodyObj.resume_data = JSON.stringify(payload.resumeData);
+    }
 
     const body = JSON.stringify(bodyObj);
 
-    const res = await fetch(this.streamEndpoint, {
+    const endpoint =
+      payload.resumeData === undefined
+        ? this.streamEndpoint
+        : `${this.baseUrl}/api/v1/chat/stream/resume`;
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -300,6 +423,8 @@ export class AguiAdapter implements StreamAdapter {
     });
 
     if (!res.ok) {
+      if (res.status === 401)
+        throw new AuthRequired("CAIPE rejected the configured credentials (HTTP 401).");
       yield {
         type: "error",
         message: `Stream request failed: ${res.status} ${res.statusText}`,
@@ -313,7 +438,66 @@ export class AguiAdapter implements StreamAdapter {
     }
 
     yield { type: "started" };
-    yield* this.parseSSE(res.body);
+    let status = "interrupted";
+    try {
+      for await (const event of this.parseSSE(res.body)) {
+        if (event.type === "token") transcript.content += event.text;
+        if (event.type === "interrupted") {
+          status = "waiting_for_input";
+          const interrupt = event.interrupt ?? { reason: event.reason };
+          const value = (interrupt.payload ?? {}) as Record<string, unknown>;
+          transcript.events.push({
+            type: "input_required",
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            namespace: [],
+            inputRequiredData: {
+              ...value,
+              interrupt_id: interrupt.id,
+              type: event.reason === "tool_approval" ? "tool_approval" : "form_input",
+            },
+          });
+        } else if (event.type === "done") status = "done";
+        else if (event.type === "tool")
+          transcript.events.push({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            namespace: [],
+            type: "tool_start",
+            toolData: { tool_name: event.name, tool_call_id: event.toolCallId, args: event.input },
+          });
+        else if (event.type === "tool-result")
+          transcript.events.push({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            namespace: [],
+            type: "tool_end",
+            toolData: { tool_call_id: event.toolCallId, result: event.content },
+          });
+        yield event;
+      }
+    } finally {
+      if (this.options?.persistHistory) {
+        await this.requestJson(historyPath, {
+          method: "POST",
+          signal: AbortSignal.timeout(5_000),
+          body: {
+            message_id: `${transcript.id}-assistant`,
+            role: "assistant",
+            content: transcript.content,
+            metadata: {
+              turn_id: transcript.id,
+              source: "caipe-cli",
+              agent_id: agentId,
+              is_final: true,
+              turn_status: status,
+              is_interrupted: status !== "done",
+            },
+            stream_events: transcript.events,
+          },
+        });
+      }
+    }
   }
 
   private async *parseSSE(body: ReadableStream<Uint8Array>): AsyncIterable<StreamEvent> {
@@ -323,7 +507,6 @@ export class AguiAdapter implements StreamAdapter {
     // Current SSE frame fields
     let eventType = "";
     let dataLines: string[] = [];
-    let fullText = "";
 
     try {
       while (true) {
@@ -356,19 +539,22 @@ export class AguiAdapter implements StreamAdapter {
 
               const ev = this.mapEvent(et || (parsed.type as string) || "", parsed);
               if (ev) {
-                if (ev.type === "token") fullText += (ev as TokenEvent).text;
                 yield ev;
-                if (ev.type === "done" || ev.type === "error") return;
+                if (ev.type === "done" || ev.type === "error" || ev.type === "interrupted") return;
               }
             }
           }
         }
       }
     } finally {
+      await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
 
-    yield { type: "done", response: fullText };
+    yield {
+      type: "error",
+      message: "CAIPE stream closed before a terminal event; check the conversation in CAIPE.",
+    };
   }
 
   private mapEvent(eventType: string, parsed: Record<string, unknown>): StreamEvent | null {
@@ -415,7 +601,7 @@ export class AguiAdapter implements StreamAdapter {
         if (outcome === "interrupt") {
           const interrupt = parsed.interrupt as Record<string, unknown> | undefined;
           const reason = interrupt?.reason as string | undefined;
-          return { type: "interrupted", reason };
+          return { type: "interrupted", reason, interrupt };
         }
         return { type: "done" };
       }
@@ -434,7 +620,12 @@ export class AguiAdapter implements StreamAdapter {
           return { type: "token", text: `\n> ⚠ ${(val?.message as string) ?? ""}` };
         }
         if (name === "INPUT_REQUIRED") {
-          return { type: "interrupted" };
+          const value = parsed.value as Record<string, unknown> | undefined;
+          return {
+            type: "interrupted",
+            reason: value?.type === "tool_approval" ? "tool_approval" : "human_input",
+            interrupt: { payload: value },
+          };
         }
         return null;
       }
@@ -461,6 +652,6 @@ export function createAdapter(
   streamEndpoint: string,
   getAccessToken: () => Promise<string>,
   options?: AdapterOptions,
-): StreamAdapter {
+): ConversationAdapter {
   return new AguiAdapter(agent, streamEndpoint, getAccessToken, options);
 }
