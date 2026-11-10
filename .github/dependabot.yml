@@ -1,0 +1,26 @@
+---
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # These platform packages are versioned together by the release workflow.
+      - dependency-name: "caipe-darwin-arm64"
+      - dependency-name: "caipe-darwin-x64"
+      - dependency-name: "caipe-linux-arm64"
+      - dependency-name: "caipe-linux-x64"
+    groups:
+      packages-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
