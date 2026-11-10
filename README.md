@@ -127,6 +127,10 @@ signs them with cosign, and publishes the matching npm packages.
 
 ## Developer guide
 
+See [Contributing](CONTRIBUTING.md) for local checks, dependency updates, review,
+and DCO requirements, [Maintainers](MAINTAINERS.md) for project contacts, and the
+[Security policy](SECURITY.md) for private vulnerability reporting.
+
 ### Build from source
 
 ```bash
